@@ -1,0 +1,120 @@
+@import "tailwindcss";
+
+/*
+  AgencyOps design tokens.
+  Foundation: warm-neutral "paper" surfaces + ink text.
+  One brand accent ("signal", a deep teal-green) used for primary actions,
+  focus and progress. Semantic colours are reserved for status only.
+*/
+:root {
+  --background: oklch(0.985 0.003 95);
+  --foreground: oklch(0.21 0.012 260);
+  --surface: oklch(1 0 0);
+  --surface-muted: oklch(0.965 0.004 95);
+  --border: oklch(0.91 0.005 95);
+  --border-strong: oklch(0.84 0.007 95);
+  --muted-foreground: oklch(0.5 0.012 260);
+
+  --primary: oklch(0.42 0.085 180);
+  --primary-hover: oklch(0.37 0.085 180);
+  --primary-foreground: oklch(0.985 0.003 95);
+  --primary-soft: oklch(0.955 0.03 180);
+  --ring: oklch(0.55 0.1 180);
+
+  --success: oklch(0.52 0.12 155);
+  --success-soft: oklch(0.955 0.04 155);
+  --warning: oklch(0.6 0.13 75);
+  --warning-soft: oklch(0.96 0.05 85);
+  --danger: oklch(0.54 0.19 27);
+  --danger-soft: oklch(0.96 0.03 27);
+  --info: oklch(0.5 0.09 250);
+  --info-soft: oklch(0.955 0.025 250);
+
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: oklch(0.17 0.008 260);
+  --foreground: oklch(0.95 0.004 95);
+  --surface: oklch(0.205 0.009 260);
+  --surface-muted: oklch(0.235 0.009 260);
+  --border: oklch(0.29 0.01 260);
+  --border-strong: oklch(0.37 0.01 260);
+  --muted-foreground: oklch(0.7 0.01 260);
+
+  --primary: oklch(0.72 0.11 178);
+  --primary-hover: oklch(0.78 0.11 178);
+  --primary-foreground: oklch(0.17 0.008 260);
+  --primary-soft: oklch(0.28 0.04 180);
+  --ring: oklch(0.72 0.11 178);
+
+  --success: oklch(0.75 0.14 155);
+  --success-soft: oklch(0.28 0.05 155);
+  --warning: oklch(0.8 0.13 80);
+  --warning-soft: oklch(0.3 0.05 80);
+  --danger: oklch(0.72 0.17 27);
+  --danger-soft: oklch(0.29 0.06 27);
+  --info: oklch(0.75 0.09 250);
+  --info-soft: oklch(0.28 0.04 250);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+
+  --shadow-pop: 0 1px 2px oklch(0.2 0.01 260 / 0.06), 0 8px 24px -8px oklch(0.2 0.01 260 / 0.16);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
+    text-rendering: optimizeLegibility;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
