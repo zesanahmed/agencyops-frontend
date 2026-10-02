@@ -5,7 +5,8 @@ import type { User } from "@/types/domain";
  * Access token lives in memory only. The refresh token is an HttpOnly cookie
  * managed by the backend, so nothing sensitive is ever written to storage.
  */
-export type AuthStatus = "unknown" | "authenticated" | "anonymous";
+/** "unavailable": a session may exist but the server couldn't be reached to confirm it. */
+export type AuthStatus = "unknown" | "authenticated" | "anonymous" | "unavailable";
 
 interface AuthState {
   accessToken: string | null;

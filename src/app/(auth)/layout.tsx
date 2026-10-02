@@ -3,6 +3,7 @@ import { Logo } from "@/components/shared/logo";
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="grid min-h-dvh lg:grid-cols-[minmax(0,1fr)_minmax(0,32rem)]">
+      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-surface focus:px-3 focus:py-2 focus:shadow-(--shadow-pop)">Skip to content</a>
       <aside className="hidden flex-col justify-between border-r border-border bg-surface-muted p-12 lg:flex">
         <Logo />
         <div className="max-w-md space-y-6">

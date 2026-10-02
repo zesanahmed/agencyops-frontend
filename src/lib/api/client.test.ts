@@ -55,6 +55,26 @@ describe("apiRequest", () => {
     expect(useAuthStore.getState().accessToken).toBeNull();
   });
 
+  it("keeps the session when the refresh endpoint is unreachable (network error)", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/auth/refresh")) throw new TypeError("Failed to fetch");
+      return json(401, {});
+    });
+    await expect(apiRequest("/organizations")).rejects.toBeInstanceOf(TypeError);
+    expect(useAuthStore.getState().status).toBe("authenticated");
+  });
+
+  it("keeps the session when the refresh endpoint is down (5xx/429)", async () => {
+    for (const status of [500, 503, 429]) {
+      useAuthStore.setState({ accessToken: "old", status: "authenticated" });
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input) =>
+        String(input).endsWith("/auth/refresh") ? json(status, {}) : json(401, {}));
+      await expect(apiRequest("/organizations")).rejects.toBeInstanceOf(TypeError);
+      expect(useAuthStore.getState().status).toBe("authenticated");
+      vi.restoreAllMocks();
+    }
+  });
+
   it("never leaks 5xx server messages", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(json(500, { message: "stack: secret" }));
     await expect(apiRequest("/x", { anonymous: true })).rejects.toThrow(/Something went wrong/);

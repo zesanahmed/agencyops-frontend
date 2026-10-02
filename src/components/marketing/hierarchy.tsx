@@ -13,11 +13,14 @@ export function Hierarchy() {
   return (
     <ol aria-label="How AgencyOps is organized" className="relative space-y-3 border-l border-border-strong pl-6">
       {LEVELS.map((l, i) => (
-        <li key={l.name} className="relative rounded-lg border border-border bg-surface p-4" style={{ marginLeft: `${i * 0.75}rem` }}>
-          <span className="absolute -left-[2.05rem] top-5 size-2.5 rounded-full border-2 border-background bg-primary" aria-hidden />
-          <div className="flex items-start gap-3">
-            <l.icon className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
-            <div><p className="text-sm font-medium">{l.name}</p><p className="text-sm text-muted-foreground">{l.note}</p></div>
+        <li key={l.name} className="relative">
+          {/* Dot stays on the rail; only the card indents. */}
+          <span className="absolute -left-[1.85rem] top-5 size-2.5 rounded-full border-2 border-background bg-primary" aria-hidden />
+          <div className="rounded-lg border border-border bg-surface p-4" style={{ marginLeft: `${i * 0.75}rem` }}>
+            <div className="flex items-start gap-3">
+              <l.icon className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+              <div><p className="text-sm font-medium">{l.name}</p><p className="text-sm text-muted-foreground">{l.note}</p></div>
+            </div>
           </div>
         </li>
       ))}

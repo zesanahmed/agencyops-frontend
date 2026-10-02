@@ -58,24 +58,39 @@ async function send(path: string, opts: RequestOptions, token: string | null): P
 }
 
 /**
+ * Outcome of a refresh attempt. The distinction matters: only a definitive
+ * rejection (the server says the session is invalid) may end the session.
+ * A network error, an aborted request (page unloading), a 5xx or 429 is
+ * transient — the refresh cookie may still be perfectly valid.
+ */
+export type RefreshOutcome =
+  | { kind: "ok"; token: string }
+  | { kind: "rejected" }
+  | { kind: "unavailable" };
+
+/**
  * Single-flight refresh: concurrent 401s share one /auth/refresh call, which
  * matters because the backend rotates the refresh token and treats a reused
  * token as theft (it revokes the session).
  */
-let refreshInFlight: Promise<string | null> | null = null;
+let refreshInFlight: Promise<RefreshOutcome> | null = null;
 
-export function refreshAccessToken(): Promise<string | null> {
+export function refreshSession(): Promise<RefreshOutcome> {
   if (!refreshInFlight) {
-    refreshInFlight = (async () => {
+    refreshInFlight = (async (): Promise<RefreshOutcome> => {
       try {
         const res = await send("/auth/refresh", { method: "POST", anonymous: true }, null);
-        if (!res.ok) return null;
-        const body = (await readBody(res)) as SuccessEnvelope<{ accessToken?: string }> | undefined;
-        const token = body?.data?.accessToken ?? null;
-        useAuthStore.getState().setAccessToken(token);
-        return token;
+        if (res.ok) {
+          const body = (await readBody(res)) as SuccessEnvelope<{ accessToken?: string }> | undefined;
+          const token = body?.data?.accessToken;
+          // A 200 without a token is a contract problem, not a signed-out user: don't destroy the session over it.
+          if (!token) return { kind: "unavailable" };
+          useAuthStore.getState().setAccessToken(token);
+          return { kind: "ok", token };
+        }
+        return res.status >= 500 || res.status === 429 || res.status === 408 ? { kind: "unavailable" } : { kind: "rejected" };
       } catch {
-        return null;
+        return { kind: "unavailable" };
       } finally {
         refreshInFlight = null;
       }
@@ -84,16 +99,25 @@ export function refreshAccessToken(): Promise<string | null> {
   return refreshInFlight;
 }
 
+/** Convenience for callers that only need a token or nothing. */
+export async function refreshAccessToken(): Promise<string | null> {
+  const outcome = await refreshSession();
+  return outcome.kind === "ok" ? outcome.token : null;
+}
+
 export async function apiRequest<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const store = useAuthStore.getState();
   let res = await send(path, opts, store.accessToken);
 
   if (res.status === 401 && !opts.anonymous) {
-    const fresh = await refreshAccessToken();
-    if (fresh) {
-      res = await send(path, opts, fresh);
-    } else {
+    const outcome = await refreshSession();
+    if (outcome.kind === "ok") {
+      res = await send(path, opts, outcome.token);
+    } else if (outcome.kind === "rejected") {
       useAuthStore.getState().clear();
+    } else {
+      // Can't tell whether the session is valid. Surface a connectivity error; keep the session.
+      throw new TypeError("Session refresh is unavailable");
     }
   }
 

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toErrorMessage } from "@/lib/api/errors";
+import { extractFieldErrors } from "@/lib/api/field-errors";
 import { useAuth } from "./auth-provider";
 import { registerSchema, type RegisterValues } from "./schemas";
 
@@ -24,7 +25,7 @@ export function RegisterForm() {
   const { register: signUp } = useAuth();
   const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<RegisterValues>({ resolver: zodResolver(registerSchema) });
+  const { register, handleSubmit, setError, formState: { errors, isSubmitting } } = useForm<RegisterValues>({ resolver: zodResolver(registerSchema) });
 
   return (
     <form
@@ -37,6 +38,13 @@ export function RegisterForm() {
           toast.success("Account created");
           router.replace("/organizations");
         } catch (e) {
+          // Backend validation is authoritative: show its messages next to the matching fields.
+          const fieldErrors = extractFieldErrors(e, ["name", "email", "password"] as const);
+          const mapped = Object.entries(fieldErrors) as [keyof typeof fieldErrors & string, string][];
+          if (mapped.length) {
+            for (const [field, message] of mapped) setError(field as "name" | "email" | "password", { type: "server", message });
+            return;
+          }
           const msg = toErrorMessage(e);
           setServerError(msg);
           toast.error(msg);

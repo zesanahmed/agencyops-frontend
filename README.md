@@ -52,3 +52,12 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 **Revisit when both are true:** `eslint-plugin-react` (or `eslint-config-next`) supports ESLint 10, and
 `typescript-eslint` supports TypeScript >= 7.1. Then move to TypeScript 7 + ESLint 10 without shims.
 
+## Type-checking
+
+`npm run typecheck` runs `next typegen` before `tsc --noEmit`. Next generates the App Router route
+types (the ones that validate layouts/pages against their route params) only during `dev`, `build` or
+`typegen`; plain `tsc --noEmit` on a clean checkout skips that validation and can miss a layout placed
+under the wrong route (for example an organization layout in `src/app/(app)/` instead of
+`src/app/(app)/organizations/[organizationId]/`). `src/app/route-structure.test.ts` guards the same
+mistake during `npm test`.
+
