@@ -53,7 +53,7 @@ export function ProjectList() {
           <EmptyState icon={SearchX} title="No projects match" description="Try a different search or clear the status filter." />
         ) : (
           <EmptyState icon={FolderKanban} title="No projects yet" description="Projects group sprints, tasks and people. Create the first one to start planning work."
-            action={<Can permission="project.manage"><CreateProjectDialog /></Can>} />
+            action={<Can permission="project:create"><CreateProjectDialog /></Can>} />
         )
       ) : (
         <>

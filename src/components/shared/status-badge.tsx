@@ -1,4 +1,4 @@
-import { CheckCircle2, Circle, CircleDashed, CircleDot, Clock, Archive, PauseCircle, OctagonAlert, Flame, ArrowUp, ArrowRight, ArrowDown, PlayCircle } from "lucide-react";
+import { CheckCircle2, Circle, CircleDashed, CircleDot, Clock, Ban, PauseCircle, Flame, ArrowUp, ArrowRight, ArrowDown, PlayCircle, Inbox } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 
@@ -10,14 +10,14 @@ const PROJECT: Record<string, Def> = {
   ACTIVE: { label: "Active", tone: "success", icon: PlayCircle },
   ON_HOLD: { label: "On hold", tone: "warning", icon: PauseCircle },
   COMPLETED: { label: "Completed", tone: "primary", icon: CheckCircle2 },
-  ARCHIVED: { label: "Archived", tone: "neutral", icon: Archive },
+  CANCELLED: { label: "Cancelled", tone: "neutral", icon: Ban },
 };
 const TASK: Record<string, Def> = {
+  BACKLOG: { label: "Backlog", tone: "neutral", icon: Inbox },
   TODO: { label: "To do", tone: "neutral", icon: Circle },
   IN_PROGRESS: { label: "In progress", tone: "info", icon: CircleDot },
   IN_REVIEW: { label: "In review", tone: "warning", icon: Clock },
   DONE: { label: "Done", tone: "success", icon: CheckCircle2 },
-  BLOCKED: { label: "Blocked", tone: "danger", icon: OctagonAlert },
 };
 const PRIORITY: Record<string, Def> = {
   LOW: { label: "Low", tone: "neutral", icon: ArrowDown },
@@ -42,9 +42,7 @@ export const TaskStatusBadge = ({ status }: { status: string }) => render(TASK, 
 export const PriorityBadge = ({ priority }: { priority: string }) => render(PRIORITY, priority);
 export const SprintStatusBadge = ({ status }: { status: string }) => render(SPRINT, status);
 
-export const PROJECT_STATUSES = Object.keys(PROJECT);
-export const TASK_STATUSES = Object.keys(TASK);
-export const TASK_PRIORITIES = Object.keys(PRIORITY);
+export { PROJECT_STATUSES, TASK_STATUSES, TASK_PRIORITIES } from "@/types/domain";
 export const statusLabel = {
   project: (v: string) => PROJECT[v]?.label ?? humanize(v),
   task: (v: string) => TASK[v]?.label ?? humanize(v),

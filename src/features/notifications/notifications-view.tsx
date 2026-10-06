@@ -48,7 +48,7 @@ export function NotificationsView() {
                   <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", unread ? "bg-primary" : "bg-transparent")} aria-hidden />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm"><span className="sr-only">{unread ? "Unread: " : ""}</span><span className={unread ? "font-medium" : undefined}>{n.title}</span></p>
-                    {n.body ? <p className="mt-0.5 text-sm text-muted-foreground">{n.body}</p> : null}
+                    {n.message ? <p className="mt-0.5 text-sm text-muted-foreground">{n.message}</p> : null}
                     <p className="mt-1 text-xs text-muted-foreground">{n.type.toLowerCase().replace(/_/g, " ")} · {timeAgo(n.createdAt)}</p>
                   </div>
                   {unread ? <Button variant="ghost" size="sm" loading={markOne.isPending && markOne.variables === n.id} onClick={() => markOne.mutate(n.id)}>Mark read</Button> : null}

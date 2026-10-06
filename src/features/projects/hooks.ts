@@ -27,4 +27,4 @@ export const useUpdateProject = (o: string, p: string) =>
   useAction({ fn: (b: { name?: string; description?: string; status?: string }) => projectApi.update(o, p, b), invalidate: [["organizations", o, "projects"]], success: "Project updated" });
 
 export const useDeleteProject = (o: string) =>
-  useAction({ fn: (p: string) => projectApi.remove(o, p), invalidate: [["organizations", o, "projects"]], success: "Project deleted" });
+  useAction({ fn: (p: string) => projectApi.remove(o, p), invalidate: [["organizations", o, "projects"]], deferRefetch: true, success: "Project deleted" });

@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Projects" };
 export default function ProjectsPage() {
   return (
     <>
-      <PageHeader title="Projects" description="Every engagement your agency is running, with its sprints and tasks." actions={<Can permission="project.manage"><CreateProjectDialog /></Can>} />
+      <PageHeader title="Projects" description="Every engagement your agency is running, with its sprints and tasks." actions={<Can permission="project:create"><CreateProjectDialog /></Can>} />
       <Suspense><ProjectList /></Suspense>
     </>
   );

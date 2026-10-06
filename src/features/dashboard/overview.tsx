@@ -26,20 +26,20 @@ export function Overview() {
   if (work.isError) return <ErrorState title="Couldn't load the overview" />;
 
   if (!work.totalProjects)
-    return <EmptyState icon={FolderKanban} title="Start with a project" description="Your overview fills in as projects and tasks are created: what's active, what's blocked, what's next." action={<Can permission="project.manage"><CreateProjectDialog /></Can>} />;
+    return <EmptyState icon={FolderKanban} title="Start with a project" description="Your overview fills in as projects and tasks are created: what's active, what's in review, what's next." action={<Can permission="project:create"><CreateProjectDialog /></Can>} />;
 
   const active = work.projects.filter((p) => p.status === "ACTIVE").length;
   const counts: Record<string, number> = {};
   for (const t of work.tasks) if (!t.parentTaskId) counts[t.status] = (counts[t.status] ?? 0) + 1;
   const open = work.tasks.filter((t) => !t.parentTaskId && t.status !== "DONE").length;
-  const blocked = counts.BLOCKED ?? 0;
+  const inReview = counts.IN_REVIEW ?? 0;
 
   return (
     <div className="space-y-8">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Active projects" value={active} hint={`${work.totalProjects} total`} />
         <StatCard label="Open tasks" value={open} hint={`across ${work.scanned.length} open projects`} />
-        <StatCard label="Blocked" value={blocked} tone="danger" hint={blocked ? "Needs unblocking" : "Nothing stuck"} />
+        <StatCard label="In review" value={inReview} hint={inReview ? "Awaiting sign-off" : "Nothing waiting"} />
         <StatCard label="Unread" value={unread.data?.meta.total ?? 0} hint="notifications" />
       </div>
       <div className="grid gap-8 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
@@ -57,7 +57,7 @@ export function Overview() {
           </ul>
         </section>
       </div>
-      {work.truncated ? <p className="text-xs text-muted-foreground">Task figures cover your {work.scanned.length} most recent open projects.</p> : null}
+      {work.projectsTruncated || work.tasksTruncated ? <p className="text-xs text-muted-foreground">Task figures cover {work.projectsTruncated ? `your ${work.scanned.length} most recent open projects` : "open projects"}{work.tasksTruncated ? ", counting up to 100 tasks per project" : ""}.</p> : null}
     </div>
   );
 }

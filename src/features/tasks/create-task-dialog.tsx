@@ -10,13 +10,14 @@ import { Input, Select, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TASK_PRIORITIES, statusLabel } from "@/components/shared/status-badge";
 import { useOrg } from "@/features/organizations/org-context";
-import { useAllMembers, useCreateTask } from "./hooks";
+import { useMemberDirectory } from "@/features/members/use-member-directory";
+import { useCreateTask } from "./hooks";
 import { taskSchema, type TaskValues } from "./schemas";
 
 export function CreateTaskDialog({ projectId }: { projectId: string }) {
   const { organizationId } = useOrg();
   const [open, setOpen] = useState(false);
-  const members = useAllMembers(organizationId);
+  const members = useMemberDirectory(organizationId);
   const create = useCreateTask(organizationId, projectId);
   const { register, handleSubmit, reset, formState: { errors } } = useForm<TaskValues>({ resolver: zodResolver(taskSchema), defaultValues: { priority: "MEDIUM" } });
 
@@ -48,7 +49,7 @@ export function CreateTaskDialog({ projectId }: { projectId: string }) {
               <Label htmlFor="task-assignee">Assignee</Label>
               <Select id="task-assignee" {...register("assigneeMembershipId")}>
                 <option value="">Unassigned</option>
-                {members.data?.items.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                {members.list.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
               </Select>
             </div>
           </div>

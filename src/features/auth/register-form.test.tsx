@@ -6,7 +6,8 @@ import { ApiError } from "@/lib/api/errors";
 
 const signUp = vi.fn();
 const replace = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ replace }) }));
+let nextParam: string | null = null;
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace }), useSearchParams: () => ({ get: (k: string) => (k === "next" ? nextParam : null) }) }));
 vi.mock("./auth-provider", () => ({ useAuth: () => ({ register: signUp }) }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
@@ -20,14 +21,14 @@ async function fill(over: Partial<Record<"name" | "email" | "password" | "confir
 }
 
 describe("RegisterForm", () => {
-  beforeEach(() => { signUp.mockReset(); replace.mockReset(); });
+  beforeEach(() => { signUp.mockReset(); replace.mockReset(); nextParam = null; });
 
   it("blocks submission and explains each invalid field", async () => {
     render(<RegisterForm />);
     await userEvent.click(screen.getByRole("button", { name: "Create account" }));
-    expect(await screen.findByText("Name must be at least 2 characters")).toBeInTheDocument();
+    expect(await screen.findByText("Name is required")).toBeInTheDocument();
     expect(screen.getByText("Email is required")).toBeInTheDocument();
-    expect(screen.getByText("Use at least 8 characters")).toBeInTheDocument();
+    expect(screen.getByText("Password must be at least 8 characters")).toBeInTheDocument();
     expect(signUp).not.toHaveBeenCalled();
   });
 
@@ -35,6 +36,38 @@ describe("RegisterForm", () => {
     render(<RegisterForm />);
     await fill({ confirmPassword: "Different1" });
     expect(await screen.findByText("Passwords don't match")).toBeInTheDocument();
+    expect(signUp).not.toHaveBeenCalled();
+  });
+
+  it("applies the backend's password policy: 8–128 characters, no letter/number composition rule", async () => {
+    signUp.mockResolvedValue({});
+    render(<RegisterForm />);
+    await fill({ password: "abcdefgh", confirmPassword: "abcdefgh" }); // all letters: valid per backend
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/organizations"));
+    expect(signUp).toHaveBeenCalledWith(expect.objectContaining({ password: "abcdefgh" }));
+  });
+
+  it("returns to the invitation after registering (?next=/invite/<token>)", async () => {
+    signUp.mockResolvedValue({});
+    nextParam = "/invite/abc123";
+    render(<RegisterForm />);
+    await fill();
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/invite/abc123"));
+  });
+
+  it("ignores an unsafe ?next", async () => {
+    signUp.mockResolvedValue({});
+    nextParam = "//evil.example";
+    render(<RegisterForm />);
+    await fill();
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/organizations"));
+  });
+
+  it("rejects passwords over 128 characters", async () => {
+    render(<RegisterForm />);
+    const long = "a".repeat(129);
+    await fill({ password: long, confirmPassword: long });
+    expect(await screen.findByText("Password must be at most 128 characters")).toBeInTheDocument();
     expect(signUp).not.toHaveBeenCalled();
   });
 

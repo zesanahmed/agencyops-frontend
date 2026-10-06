@@ -19,7 +19,8 @@ export function OrgGuard({ organizationId, children }: { organizationId: string;
   if (org.isLoading) return <div className="space-y-4" role="status" aria-label="Loading organization"><Skeleton className="h-8 w-64" /><Skeleton className="h-48" /></div>;
   if (org.isError) {
     const e = org.error;
-    if (e instanceof ApiError && (e.isNotFound || e.isForbidden))
+    // 400 = malformed organization id (the backend validates it as a UUID before looking it up).
+    if (e instanceof ApiError && (e.isNotFound || e.isForbidden || e.status === 400))
       return <EmptyState icon={Building2} title="Organization unavailable" description="It doesn't exist, or you're not a member. Ask an owner for an invitation."
         action={<Button asChild><Link href="/organizations">Your organizations</Link></Button>} />;
     return <ErrorState error={e} onRetry={() => org.refetch()} title="Couldn't load this organization" />;

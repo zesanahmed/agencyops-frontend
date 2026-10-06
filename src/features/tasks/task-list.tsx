@@ -10,6 +10,7 @@ import { SearchInput } from "@/components/shared/search-input";
 import { PriorityBadge, TASK_PRIORITIES, TASK_STATUSES, TaskStatusBadge, statusLabel } from "@/components/shared/status-badge";
 import { Avatar } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useMemberDirectory } from "@/features/members/use-member-directory";
 import { Can, useOrg } from "@/features/organizations/org-context";
 import { useUrlState } from "@/hooks/use-url-state";
 import { useTasks } from "@/features/projects/hooks";
@@ -17,6 +18,7 @@ import { CreateTaskDialog } from "./create-task-dialog";
 
 export function TaskList({ projectId }: { projectId: string }) {
   const { organizationId } = useOrg();
+  const directory = useMemberDirectory(organizationId);
   const { get, page } = useUrlState();
   const status = get("status");
   const priority = get("priority");
@@ -29,7 +31,7 @@ export function TaskList({ projectId }: { projectId: string }) {
         <SearchInput placeholder="Search tasks…" label="Search tasks" />
         <FilterSelect param="status" label="Filter by status" allLabel="All statuses" options={TASK_STATUSES.map((s) => ({ value: s, label: statusLabel.task(s) }))} />
         <FilterSelect param="priority" label="Filter by priority" allLabel="All priorities" options={TASK_PRIORITIES.map((s) => ({ value: s, label: statusLabel.priority(s) }))} />
-        <div className="sm:ml-auto"><Can permission="task.create"><CreateTaskDialog projectId={projectId} /></Can></div>
+        <div className="sm:ml-auto"><Can permission="task:create"><CreateTaskDialog projectId={projectId} /></Can></div>
       </div>
 
       {isLoading ? (
@@ -40,7 +42,7 @@ export function TaskList({ projectId }: { projectId: string }) {
         status || priority || search ? (
           <EmptyState icon={SearchX} title="No tasks match" description="Adjust the filters or search to see more work." />
         ) : (
-          <EmptyState icon={ListChecks} title="No tasks yet" description="Break the project into tasks so the team knows what to do next." action={<Can permission="task.create"><CreateTaskDialog projectId={projectId} /></Can>} />
+          <EmptyState icon={ListChecks} title="No tasks yet" description="Break the project into tasks so the team knows what to do next." action={<Can permission="task:create"><CreateTaskDialog projectId={projectId} /></Can>} />
         )
       ) : (
         <>
@@ -51,7 +53,7 @@ export function TaskList({ projectId }: { projectId: string }) {
                   <span className="min-w-0 flex-1 basis-56 truncate text-sm font-medium">{t.title}</span>
                   <PriorityBadge priority={t.priority} />
                   <TaskStatusBadge status={t.status} />
-                  {t.assigneeName ? <Avatar name={t.assigneeName} size="sm" /> : <span className="w-6 text-center text-xs text-muted-foreground" aria-label="Unassigned">—</span>}
+                  {t.assigneeMembershipId ? <Avatar name={directory.nameOf(t.assigneeMembershipId)} size="sm" /> : <span className="w-6 text-center text-xs text-muted-foreground" aria-label="Unassigned">—</span>}
                 </Link>
               </li>
             ))}

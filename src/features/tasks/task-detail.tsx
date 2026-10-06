@@ -17,18 +17,18 @@ import { ErrorState } from "@/components/shared/error-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { Pagination } from "@/components/shared/pagination";
 import { PriorityBadge, TASK_PRIORITIES, TASK_STATUSES, TaskStatusBadge, statusLabel } from "@/components/shared/status-badge";
+import { useMemberDirectory } from "@/features/members/use-member-directory";
 import { useOrg } from "@/features/organizations/org-context";
 import { useTask } from "@/features/projects/hooks";
-import { useAuthStore } from "@/stores/auth-store";
 import { useUrlState } from "@/hooks/use-url-state";
 import { timeAgo } from "@/lib/format";
 import { commentSchema } from "./schemas";
 import {
-  useAddCollaborator, useAllMembers, useCollaborators, useComments, useCreateComment, useCreateSubtask,
+  useAddCollaborator, useCollaborators, useComments, useCreateComment, useCreateSubtask,
   useDeleteComment, useDeleteTask, useRemoveCollaborator, useSubtasks, useUpdateComment, useUpdateTask,
 } from "./hooks";
 
-const subtaskSchema = z.object({ title: z.string().trim().min(2, "Title must be at least 2 characters").max(200) });
+const subtaskSchema = z.object({ title: z.string().trim().min(1, "Title is required").max(300, "Title is too long") });
 
 export function TaskDetail({ projectId, taskId }: { projectId: string; taskId: string }) {
   const { organizationId: o, can } = useOrg();
@@ -36,21 +36,21 @@ export function TaskDetail({ projectId, taskId }: { projectId: string; taskId: s
   const task = useTask(o, projectId, taskId);
   const update = useUpdateTask(o, projectId, taskId);
   const del = useDeleteTask(o, projectId);
-  const members = useAllMembers(o);
+  const members = useMemberDirectory(o);
   const [confirming, setConfirming] = useState(false);
   const back = `/organizations/${o}/projects/${projectId}`;
 
   if (task.isLoading) return <div className="space-y-4"><Skeleton className="h-10 w-80" /><Skeleton className="h-40" /><Skeleton className="h-48" /></div>;
   if (task.isError || !task.data) return <ErrorState error={task.error} onRetry={() => task.refetch()} title="Couldn't load this task" />;
   const t = task.data;
-  const editable = can("task.update");
+  const editable = can("task:update");
 
   return (
     <>
       <Link href={back} className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" /> Back to project</Link>
       <PageHeader title={t.title} eyebrow={<span className="flex items-center gap-2"><TaskStatusBadge status={t.status} /><PriorityBadge priority={t.priority} /></span>}
         description={t.description || undefined}
-        actions={can("task.delete") ? <Button variant="ghost" size="icon" aria-label="Delete task" onClick={() => setConfirming(true)}><Trash2 /></Button> : undefined} />
+        actions={can("task:delete") ? <Button variant="ghost" size="icon" aria-label="Delete task" onClick={() => setConfirming(true)}><Trash2 /></Button> : undefined} />
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <div className="space-y-10">
@@ -69,9 +69,9 @@ export function TaskDetail({ projectId, taskId }: { projectId: string; taskId: s
             </Select>
           </Field>
           <Field label="Assignee">
-            <Select aria-label="Assignee" disabled={!editable || update.isPending} value={t.assigneeMembershipId ?? ""} onChange={(e) => update.mutate({ assigneeMembershipId: e.target.value || undefined })}>
+            <Select aria-label="Assignee" disabled={!editable || update.isPending} value={t.assigneeMembershipId ?? ""} onChange={(e) => update.mutate({ assigneeMembershipId: e.target.value || null })}>
               <option value="">Unassigned</option>
-              {members.data?.items.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+              {members.list.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
             </Select>
           </Field>
           <Collaborators projectId={projectId} taskId={taskId} />
@@ -102,7 +102,7 @@ function Subtasks({ projectId, taskId }: { projectId: string; taskId: string }) 
           </ul>
         ) : <p className="text-sm text-muted-foreground">No subtasks. Split the work into smaller steps if it helps.</p>
       )}
-      {can("task.create") ? (
+      {can("task:create") ? (
         <form noValidate className="flex gap-2" onSubmit={handleSubmit(async (v) => { const ok = await create.mutateAsync(v.title).then(() => true, () => false); if (ok) reset(); })}>
           <div className="flex-1"><Input aria-label="New subtask title" placeholder="Add a subtask…" aria-invalid={!!errors.title} {...register("title")} />{errors.title ? <p className="mt-1 text-xs text-danger">{errors.title.message}</p> : null}</div>
           <Button type="submit" variant="secondary" loading={create.isPending}><Plus /> Add</Button>
@@ -115,7 +115,7 @@ function Subtasks({ projectId, taskId }: { projectId: string; taskId: string }) 
 function Collaborators({ projectId, taskId }: { projectId: string; taskId: string }) {
   const { organizationId: o, can } = useOrg();
   const { data, isLoading } = useCollaborators(o, projectId, taskId);
-  const all = useAllMembers(o);
+  const directory = useMemberDirectory(o);
   const add = useAddCollaborator(o, projectId, taskId);
   const remove = useRemoveCollaborator(o, projectId, taskId);
   const taken = new Set(data?.map((c) => c.membershipId));
@@ -123,16 +123,19 @@ function Collaborators({ projectId, taskId }: { projectId: string; taskId: strin
     <Field label="Collaborators">
       {isLoading ? <Skeleton className="h-8" /> : data?.length ? (
         <ul className="space-y-1.5">
-          {data.map((c) => (
-            <li key={c.id} className="flex items-center gap-2 text-sm"><Avatar name={c.name} size="sm" /><span className="flex-1 truncate">{c.name}</span>
-              {can("task.update") ? <button className="rounded-sm p-1 text-muted-foreground hover:bg-surface-muted" aria-label={`Remove ${c.name}`} onClick={() => remove.mutate(c.id)}><X className="size-3.5" /></button> : null}</li>
-          ))}
+          {data.map((c) => {
+            const name = directory.nameOf(c.membershipId);
+            return (
+              <li key={c.id} className="flex items-center gap-2 text-sm"><Avatar name={name} size="sm" /><span className="flex-1 truncate">{name}</span>
+                {can("task:update") ? <button className="rounded-sm p-1 text-muted-foreground hover:bg-surface-muted" aria-label={`Remove ${name}`} onClick={() => remove.mutate(c.id)}><X className="size-3.5" /></button> : null}</li>
+            );
+          })}
         </ul>
       ) : <p className="text-sm text-muted-foreground">No collaborators.</p>}
-      {can("task.update") ? (
+      {can("task:update") ? (
         <Select aria-label="Add collaborator" value="" disabled={add.isPending} onChange={(e) => e.target.value && add.mutate(e.target.value)}>
           <option value="">Add collaborator…</option>
-          {all.data?.items.filter((m) => !taken.has(m.id)).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          {directory.list.filter((m) => !taken.has(m.id)).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
         </Select>
       ) : null}
     </Field>
@@ -140,11 +143,10 @@ function Collaborators({ projectId, taskId }: { projectId: string; taskId: strin
 }
 
 function Comments({ projectId, taskId }: { projectId: string; taskId: string }) {
-  const { organizationId: o, can, role } = useOrg();
+  const { organizationId: o, can, membershipId: myMembershipId } = useOrg();
   const { page } = useUrlState();
-  const me = useAuthStore((s) => s.user);
   const comments = useComments(o, projectId, taskId, page);
-  const members = useAllMembers(o);
+  const members = useMemberDirectory(o);
   const create = useCreateComment(o, projectId, taskId);
   const edit = useUpdateComment(o, projectId, taskId);
   const remove = useDeleteComment(o, projectId, taskId);
@@ -152,8 +154,7 @@ function Comments({ projectId, taskId }: { projectId: string; taskId: string }) 
   const [draft, setDraft] = useState("");
   const [mentions, setMentions] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const myMembership = members.data?.items.find((m) => (me?.id && m.userId === me.id) || (me?.email && m.email === me.email));
-  const moderator = role === "OWNER" || role === "MANAGER";
+  const moderator = can("comment:moderate");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -173,12 +174,12 @@ function Comments({ projectId, taskId }: { projectId: string; taskId: string }) 
         <>
           <ul className="space-y-4">
             {comments.data.items.map((c) => {
-              const mine = Boolean(myMembership && c.authorMembershipId === myMembership.id);
+              const mine = Boolean(myMembershipId && c.authorMembershipId === myMembershipId);
               return (
                 <li key={c.id} className="flex gap-3">
-                  <Avatar name={c.authorName} />
+                  <Avatar name={members.nameOf(c.authorMembershipId)} />
                   <div className="min-w-0 flex-1 space-y-1">
-                    <p className="text-sm"><span className="font-medium">{c.authorName}</span> <span className="text-xs text-muted-foreground">{timeAgo(c.createdAt)}{c.updatedAt && c.updatedAt !== c.createdAt ? " · edited" : ""}</span></p>
+                    <p className="text-sm"><span className="font-medium">{members.nameOf(c.authorMembershipId)}</span> <span className="text-xs text-muted-foreground">{timeAgo(c.createdAt)}{c.updatedAt && c.updatedAt !== c.createdAt ? " · edited" : ""}</span></p>
                     {editing === c.id ? (
                       <form className="space-y-2" onSubmit={async (e) => { e.preventDefault(); const ok = await edit.mutateAsync({ id: c.id, content: draft }).then(() => true, () => false); if (ok) { setEditing(null); setDraft(""); } }}>
                         <Textarea aria-label="Edit comment" value={draft} onChange={(e) => setDraft(e.target.value)} />
@@ -199,14 +200,14 @@ function Comments({ projectId, taskId }: { projectId: string; taskId: string }) 
           <Pagination meta={comments.data.meta} />
         </>
       )}
-      {can("comment.create") ? (
+      {can("comment:create") ? (
         <form onSubmit={submit} noValidate className="space-y-2">
           <Textarea aria-label="Write a comment" placeholder="Write a comment…" value={draft} onChange={(e) => setDraft(e.target.value)} aria-invalid={!!error} disabled={editing !== null} />
           {error ? <p className="text-xs text-danger">{error}</p> : null}
           <div className="flex flex-wrap items-center gap-2">
-            <Select aria-label="Mention a teammate" value="" className="w-auto min-w-44" onChange={(e) => { const id = e.target.value; if (!id) return; const m = members.data?.items.find((x) => x.id === id); if (m && !mentions.includes(id)) { setMentions([...mentions, id]); setDraft((d) => `${d}${d && !d.endsWith(" ") ? " " : ""}@${m.name} `); } }}>
+            <Select aria-label="Mention a teammate" value="" className="w-auto min-w-44" onChange={(e) => { const id = e.target.value; if (!id) return; const m = members.byId.get(id); if (m && !mentions.includes(id)) { setMentions([...mentions, id]); setDraft((d) => `${d}${d && !d.endsWith(" ") ? " " : ""}@${m.name} `); } }}>
               <option value="">@ Mention…</option>
-              {members.data?.items.filter((m) => !mentions.includes(m.id)).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+              {members.list.filter((m) => !mentions.includes(m.id)).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
             </Select>
             {mentions.length ? <span className="text-xs text-muted-foreground">{mentions.length} mentioned</span> : null}
             <Button type="submit" className="ml-auto" loading={create.isPending} disabled={editing !== null}>Comment</Button>

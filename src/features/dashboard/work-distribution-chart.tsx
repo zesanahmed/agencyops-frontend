@@ -3,8 +3,8 @@
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { statusLabel } from "@/components/shared/status-badge";
 
-const STATUSES = ["TODO", "IN_PROGRESS", "IN_REVIEW", "BLOCKED", "DONE"] as const;
-const COLOR: Record<string, string> = { TODO: "var(--border-strong)", IN_PROGRESS: "var(--info)", IN_REVIEW: "var(--warning)", BLOCKED: "var(--danger)", DONE: "var(--success)" };
+const STATUSES = ["BACKLOG", "TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"] as const;
+const COLOR: Record<string, string> = { BACKLOG: "var(--border)", TODO: "var(--border-strong)", IN_PROGRESS: "var(--info)", IN_REVIEW: "var(--warning)", DONE: "var(--success)" };
 
 /** Answers one question: where is the work sitting right now? */
 export function WorkDistributionChart({ counts }: { counts: Record<string, number> }) {

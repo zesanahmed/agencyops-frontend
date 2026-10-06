@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -11,19 +11,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toErrorMessage } from "@/lib/api/errors";
 import { extractFieldErrors } from "@/lib/api/field-errors";
+import { safeNext } from "@/lib/auth/safe-next";
 import { useAuth } from "./auth-provider";
 import { registerSchema, type RegisterValues } from "./schemas";
 
 const FIELDS = [
   { name: "name", label: "Full name", type: "text", autoComplete: "name" },
   { name: "email", label: "Work email", type: "email", autoComplete: "email" },
-  { name: "password", label: "Password", type: "password", autoComplete: "new-password", hint: "At least 8 characters, with a letter and a number." },
+  { name: "password", label: "Password", type: "password", autoComplete: "new-password", hint: "At least 8 characters." },
   { name: "confirmPassword", label: "Confirm password", type: "password", autoComplete: "new-password" },
 ] as const;
 
 export function RegisterForm() {
   const { register: signUp } = useAuth();
   const router = useRouter();
+  const next = safeNext(useSearchParams().get("next"));
   const [serverError, setServerError] = useState<string | null>(null);
   const { register, handleSubmit, setError, formState: { errors, isSubmitting } } = useForm<RegisterValues>({ resolver: zodResolver(registerSchema) });
 
@@ -36,7 +38,7 @@ export function RegisterForm() {
         try {
           await signUp({ name, email, password });
           toast.success("Account created");
-          router.replace("/organizations");
+          router.replace(next);
         } catch (e) {
           // Backend validation is authoritative: show its messages next to the matching fields.
           const fieldErrors = extractFieldErrors(e, ["name", "email", "password"] as const);
@@ -64,7 +66,7 @@ export function RegisterForm() {
       {serverError ? <p role="alert" className="rounded-md bg-danger-soft px-3 py-2 text-sm text-danger">{serverError}</p> : null}
       <Button type="submit" className="w-full" loading={isSubmitting}>Create account</Button>
       <p className="text-center text-sm text-muted-foreground">
-        Already have an account? <Link href="/login" className="font-medium text-primary hover:underline">Sign in</Link>
+        Already have an account? <Link href={next === "/organizations" ? "/login" : `/login?next=${encodeURIComponent(next)}`} className="font-medium text-primary hover:underline">Sign in</Link>
       </p>
     </form>
   );

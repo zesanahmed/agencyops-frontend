@@ -1,35 +1,45 @@
 import type { Role } from "@/types/domain";
 
 /**
- * FRONTEND-ONLY permission map, used to hide/disable UI. The backend matrix
- * (src/modules/rbac/permissions.ts) is authoritative and enforces everything.
+ * Mirror of the backend permission matrix: zesanahmed/agencyops-api,
+ * src/modules/rbac/permissions.ts (verified at commit afe5f62, 2026-09-28).
+ * Permission strings are the backend's own `resource:action` names.
  *
- * Documented facts: org delete = OWNER only; invitations = OWNER/MANAGER;
- * comment edit = author only; comment delete = author or OWNER/MANAGER.
- * Everything else is a conservative assumption. RECONCILE with the backend
- * file when it is available; a wrong guess here only affects which buttons
- * show, and a 403 is surfaced as a toast.
+ * This is for showing/hiding UI only. The backend enforces every permission on
+ * every request; a hidden button is a convenience, never the security boundary.
+ * If the backend matrix changes, update this file and rbac.test.ts together.
  */
-export type Permission =
-  | "organization.update" | "organization.delete"
-  | "member.invite" | "member.updateRole" | "member.remove"
-  | "team.manage" | "project.manage" | "sprint.manage"
-  | "task.create" | "task.update" | "task.delete"
-  | "comment.create" | "comment.moderate";
+export const PERMISSIONS = [
+  "organization:read", "organization:update", "organization:delete",
+  "membership:read", "membership:update", "membership:remove",
+  "invitation:create", "invitation:read", "invitation:revoke",
+  "team:create", "team:read", "team:update", "team:delete", "team:manage-members",
+  "project:create", "project:read", "project:update", "project:delete", "project:manage-teams", "project:manage-members",
+  "sprint:create", "sprint:read", "sprint:update", "sprint:delete",
+  "task:create", "task:read", "task:update", "task:delete",
+  "comment:create", "comment:read", "comment:moderate",
+] as const;
+export type Permission = (typeof PERMISSIONS)[number];
 
-const MANAGE: Permission[] = [
-  "member.invite", "member.remove", "team.manage", "project.manage", "sprint.manage",
-  "task.create", "task.update", "task.delete", "comment.create", "comment.moderate",
-];
-
-const MATRIX: Record<Role, ReadonlySet<Permission>> = {
-  OWNER: new Set<Permission>([...MANAGE, "organization.update", "organization.delete", "member.updateRole"]),
-  MANAGER: new Set<Permission>(MANAGE),
-  TEAM_MEMBER: new Set<Permission>(["task.create", "task.update", "comment.create"]),
+const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
+  OWNER: PERMISSIONS,
+  MANAGER: [
+    "organization:read", "membership:read",
+    "invitation:create", "invitation:read", "invitation:revoke",
+    "team:create", "team:read", "team:update", "team:delete", "team:manage-members",
+    "project:create", "project:read", "project:update", "project:delete", "project:manage-teams", "project:manage-members",
+    "sprint:create", "sprint:read", "sprint:update", "sprint:delete",
+    "task:create", "task:read", "task:update", "task:delete",
+    "comment:create", "comment:read", "comment:moderate",
+  ],
+  TEAM_MEMBER: [
+    "organization:read", "membership:read", "team:read", "project:read", "sprint:read",
+    "task:create", "task:read", "task:update", "comment:create", "comment:read",
+  ],
 };
 
 export function can(role: Role | undefined, permission: Permission): boolean {
-  return role ? MATRIX[role].has(permission) : false;
+  return role ? ROLE_PERMISSIONS[role].includes(permission) : false;
 }
 
 export const ROLE_LABEL: Record<Role, string> = {
@@ -39,7 +49,7 @@ export const ROLE_LABEL: Record<Role, string> = {
 };
 
 export const ROLE_DESCRIPTION: Record<Role, string> = {
-  OWNER: "Full control of the organization, billing and members.",
-  MANAGER: "Runs teams, projects and sprints; invites people.",
-  TEAM_MEMBER: "Works on assigned tasks and collaborates in comments.",
+  OWNER: "Full control, including organization settings, member roles and removals. Assigned only when an organization is created.",
+  MANAGER: "Runs teams, projects, sprints and tasks, and invites people. Can't change organization settings, member roles or remove members.",
+  TEAM_MEMBER: "Views teams, projects and sprints; creates and updates tasks; comments. Can't manage projects, teams or people.",
 };

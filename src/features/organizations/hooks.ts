@@ -1,27 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { memberApi, orgApi } from "@/lib/api/services";
+import { orgApi } from "@/lib/api/services";
+import { qk } from "@/lib/query-keys";
+import { useMemberDirectory } from "@/features/members/use-member-directory";
 import { useAuthStore } from "@/stores/auth-store";
 import type { Role } from "@/types/domain";
 
-export const qk = {
-  orgs: ["organizations"] as const,
-  org: (id: string) => ["organizations", id] as const,
-  members: (id: string, p?: object) => ["organizations", id, "members", p ?? {}] as const,
-  invitations: (id: string, p?: object) => ["organizations", id, "invitations", p ?? {}] as const,
-  teams: (id: string, p?: object) => ["organizations", id, "teams", p ?? {}] as const,
-  team: (id: string, t: string) => ["organizations", id, "teams", t] as const,
-  teamMembers: (id: string, t: string) => ["organizations", id, "teams", t, "members"] as const,
-  projects: (id: string, p?: object) => ["organizations", id, "projects", p ?? {}] as const,
-  project: (id: string, p: string) => ["organizations", id, "projects", p] as const,
-  sprints: (id: string, p: string) => ["organizations", id, "projects", p, "sprints"] as const,
-  tasks: (id: string, p: string, q?: object) => ["organizations", id, "projects", p, "tasks", q ?? {}] as const,
-  task: (id: string, p: string, t: string) => ["organizations", id, "projects", p, "tasks", t] as const,
-  notifications: (id: string, p?: object) => ["organizations", id, "notifications", p ?? {}] as const,
-  prefs: (id: string) => ["organizations", id, "notification-prefs"] as const,
-};
+export { qk } from "@/lib/query-keys";
 
 const authed = () => useAuthStore.getState().status === "authenticated";
 
@@ -40,24 +26,15 @@ export function useCreateOrganization() {
 }
 
 /**
- * The caller's role in an organization. Prefer the role on the org list item;
- * otherwise resolve it by matching the signed-in user in the member list.
- * UX only — the backend enforces the real permission.
+ * The caller's membership in an organization. The backend exposes the caller's
+ * role only through the members list (organizations carry no role), so we find
+ * ourselves in the member directory. UX only: the backend enforces permissions.
  */
-export function useOrgRole(organizationId: string): { role: Role | undefined; isLoading: boolean } {
+export function useOrgMembership(organizationId: string): { role: Role | undefined; membershipId: string | undefined; isLoading: boolean } {
   const user = useAuthStore((s) => s.user);
-  const orgs = useOrganizations();
   const org = useOrganization(organizationId);
-  const fromList = orgs.data?.items.find((o) => o.id === organizationId)?.role;
-  const needFallback = orgs.isSuccess && org.isSuccess && !fromList;
-  const members = useQuery({
-    queryKey: qk.members(organizationId, { limit: 100 }),
-    queryFn: () => memberApi.list(organizationId, { limit: 100 }),
-    enabled: needFallback,
-  });
-  const fallback = useMemo(
-    () => members.data?.items.find((m) => (user?.id && m.userId === user.id) || (user?.email && m.email === user.email))?.role,
-    [members.data, user],
-  );
-  return { role: fromList ?? fallback, isLoading: orgs.isLoading || (needFallback && members.isLoading) };
+  // Don't ask for members of an organization we already know is inaccessible.
+  const dir = useMemberDirectory(organizationId, org.isSuccess);
+  const me = user ? dir.list.find((m) => m.userId === user.id) : undefined;
+  return { role: me?.role, membershipId: me?.id, isLoading: org.isLoading || (org.isSuccess && dir.isLoading) };
 }

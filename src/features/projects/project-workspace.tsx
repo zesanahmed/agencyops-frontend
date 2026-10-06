@@ -30,7 +30,7 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
   if (isLoading) return <div className="space-y-4"><Skeleton className="h-10 w-72" /><Skeleton className="h-10 w-full" /><Skeleton className="h-64" /></div>;
   if (isError || !project) return <ErrorState error={error} onRetry={() => refetch()} title="Couldn't load this project" />;
 
-  const editable = can("project.manage");
+  const editable = can("project:update");
   return (
     <>
       <Link href={`/organizations/${organizationId}/projects`} className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" /> Projects</Link>
@@ -42,7 +42,7 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
           <Select aria-label="Project status" value={project.status} disabled={update.isPending} onChange={(e) => update.mutate({ status: e.target.value })} className="w-auto">
             {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{statusLabel.project(s)}</option>)}
           </Select>
-          <Can permission="project.manage"><Button variant="ghost" size="icon" aria-label="Delete project" onClick={() => setConfirming(true)}><Trash2 /></Button></Can>
+          <Can permission="project:delete"><Button variant="ghost" size="icon" aria-label="Delete project" onClick={() => setConfirming(true)}><Trash2 /></Button></Can>
         </>) : undefined}
       />
       <Tabs defaultValue="tasks">

@@ -29,7 +29,7 @@ describe("AuthProvider session restore", () => {
   it("restores the session via refresh + /auth/me when a hint exists", async () => {
     document.cookie = "ao_session=1; Path=/";
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) =>
-      String(input).endsWith("/auth/refresh") ? json(200, { data: { accessToken: "tok" } }) : json(200, { data: { id: "u1", name: "Ada", email: "ada@x.io" } }));
+      String(input).endsWith("/auth/refresh") ? json(200, { data: { accessToken: "tok" } }) : json(200, { success: true, message: "ok", data: { user: { id: "u1", name: "Ada", email: "ada@x.io", avatarUrl: null } } }));
     mount();
     await waitFor(() => expect(screen.getByText("authenticated:ada@x.io")).toBeInTheDocument());
     expect(useAuthStore.getState().accessToken).toBe("tok");
@@ -63,7 +63,7 @@ describe("AuthProvider session restore", () => {
     let down = true;
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       if (down) throw new TypeError("Failed to fetch");
-      return String(input).endsWith("/auth/refresh") ? json(200, { data: { accessToken: "tok" } }) : json(200, { data: { id: "u1", name: "Ada", email: "ada@x.io" } });
+      return String(input).endsWith("/auth/refresh") ? json(200, { data: { accessToken: "tok" } }) : json(200, { success: true, message: "ok", data: { user: { id: "u1", name: "Ada", email: "ada@x.io", avatarUrl: null } } });
     });
     mount();
     await waitFor(() => expect(screen.getByText("unavailable:none")).toBeInTheDocument());

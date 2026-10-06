@@ -9,15 +9,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useOrg } from "@/features/organizations/org-context";
 import { useOrgWork } from "./use-org-work";
 
-const ORDER = ["IN_PROGRESS", "BLOCKED", "IN_REVIEW", "TODO"];
+const ORDER = ["IN_PROGRESS", "IN_REVIEW", "TODO", "BACKLOG"] as const;
 
 export function MyWorkView() {
-  const { organizationId: o } = useOrg();
-  const work = useOrgWork(o);
-  if (work.isLoading) return <div className="space-y-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-14" />)}</div>;
+  const { organizationId: o, membershipId, roleLoading } = useOrg();
+  // Wait for our own membershipId, then let the backend filter by it.
+  const work = useOrgWork(o, { assigneeMembershipId: membershipId, enabled: Boolean(membershipId) });
+
+  if (roleLoading || (membershipId && work.isLoading)) return <div className="space-y-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-14" />)}</div>;
+  if (!membershipId) return <ErrorState title="Couldn't work out your membership in this organization" />;
   if (work.isError) return <ErrorState title="Couldn't load your work" />;
 
-  const mine = work.tasks.filter((t) => work.myMembershipId && t.assigneeMembershipId === work.myMembershipId && t.status !== "DONE" && !t.parentTaskId);
+  const mine = work.tasks.filter((t) => t.status !== "DONE");
   if (!mine.length)
     return <EmptyState icon={CheckCircle2} title="Nothing assigned to you" description="When a task is assigned to you it will appear here, grouped by where it stands." />;
 
@@ -39,7 +42,7 @@ export function MyWorkView() {
           </ul>
         </section>
       ))}
-      {work.truncated ? <p className="text-xs text-muted-foreground">Showing work from your {work.scanned.length} most recent open projects.</p> : null}
+      {work.projectsTruncated ? <p className="text-xs text-muted-foreground">Showing work from your {work.scanned.length} most recent open projects.</p> : null}
     </div>
   );
 }

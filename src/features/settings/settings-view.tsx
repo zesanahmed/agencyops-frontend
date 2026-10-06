@@ -16,6 +16,7 @@ import { RoleBadge } from "@/components/shared/role-badge";
 import { useAuth } from "@/features/auth/auth-provider";
 import { qk, useOrganization } from "@/features/organizations/hooks";
 import { organizationSchema, type OrganizationValues } from "@/features/organizations/schemas";
+import { mergePreferences } from "./preferences";
 import { useOrg } from "@/features/organizations/org-context";
 import { notificationApi, orgApi } from "@/lib/api/services";
 import { useAction } from "@/lib/use-action";
@@ -40,30 +41,30 @@ function Section({ title, description, children }: { title: string; description?
 }
 
 function OrganizationSection() {
-  const { organizationId: o, role, can } = useOrg();
+  const { organizationId: o, role, roleLoading, can } = useOrg();
   const router = useRouter();
   const org = useOrganization(o);
-  const update = useAction({ fn: (name: string) => orgApi.update(o, name), invalidate: [qk.orgs, qk.org(o)], success: "Organization renamed" });
-  const del = useAction({ fn: () => orgApi.remove(o), invalidate: [qk.orgs], success: "Organization deleted" });
+  const update = useAction({ fn: (name: string) => orgApi.update(o, { name }), invalidate: [qk.orgs, qk.org(o)], success: "Organization renamed" });
+  const del = useAction({ fn: () => orgApi.remove(o), invalidate: [qk.orgs], deferRefetch: true, success: "Organization deleted" });
   const [confirming, setConfirming] = useState(false);
   const { register, handleSubmit, formState: { errors, isDirty } } = useForm<OrganizationValues>({ resolver: zodResolver(organizationSchema), values: { name: org.data?.name ?? "" } });
 
   if (org.isLoading) return <Skeleton className="h-32" />;
   if (org.isError) return <ErrorState error={org.error} onRetry={() => org.refetch()} title="Couldn't load the organization" />;
-  const editable = can("organization.update");
+  const editable = can("organization:update");
 
   return (
     <Section title="Organization" description="Your role here decides what you can change.">
-      <div className="flex items-center gap-2 text-sm">Your role: {role ? <RoleBadge role={role} /> : <span className="text-muted-foreground">unknown</span>}</div>
+      <div className="flex items-center gap-2 text-sm">Your role: {roleLoading ? <Skeleton className="h-5 w-20" /> : role ? <RoleBadge role={role} /> : <span className="text-muted-foreground">unknown</span>}</div>
       <form noValidate className="flex items-start gap-2" onSubmit={handleSubmit((v) => update.mutate(v.name))}>
         <div className="flex-1 space-y-1.5">
           <Label htmlFor="org-rename">Name</Label>
-          <Input id="org-rename" disabled={!editable} aria-invalid={!!errors.name} {...register("name")} />
-          {errors.name ? <p className="text-xs text-danger">{errors.name.message}</p> : !editable ? <p className="text-xs text-muted-foreground">Only owners can rename the organization.</p> : null}
+          <Input id="org-rename" disabled={!editable || roleLoading} aria-invalid={!!errors.name} {...register("name")} />
+          {errors.name ? <p className="text-xs text-danger">{errors.name.message}</p> : !roleLoading && !editable ? <p className="text-xs text-muted-foreground">Only owners can rename the organization.</p> : null}
         </div>
         {editable ? <Button type="submit" className="mt-6" loading={update.isPending} disabled={!isDirty}>Save</Button> : null}
       </form>
-      {can("organization.delete") ? (
+      {can("organization:delete") ? (
         <div className="rounded-lg border border-danger/30 p-4">
           <h3 className="text-sm font-semibold text-danger">Delete organization</h3>
           <p className="mt-1 text-sm text-muted-foreground">Removes the organization and everything in it for all members.</p>
@@ -76,29 +77,40 @@ function OrganizationSection() {
   );
 }
 
-const PREF_LABEL: Record<string, string> = { MENTION: "Mentions", ASSIGNMENT: "Assignments", COMMENT: "Comments" };
+const PREF_LABEL: Record<string, string> = { MENTION: "Mentions" };
+const prefLabel = (t: string) => PREF_LABEL[t] ?? t.toLowerCase().replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 
 function PreferencesSection() {
   const { organizationId: o } = useOrg();
   const { data, isLoading, isError, error, refetch } = useQuery({ queryKey: qk.prefs(o), queryFn: () => notificationApi.preferences(o) });
-  const toggle = useAction({ fn: (v: { type: string; emailEnabled: boolean }) => notificationApi.updatePreference(o, v.type, v.emailEnabled), invalidate: [qk.prefs(o)], success: "Preference saved" });
+  const toggle = useAction({
+    fn: (v: { notificationType: string; channel: "emailEnabled" | "inAppEnabled"; value: boolean }) => notificationApi.updatePreference(o, v.notificationType, { [v.channel]: v.value }),
+    invalidate: [qk.prefs(o)],
+    success: "Preference saved",
+  });
 
   return (
-    <Section title="Notification preferences" description="Choose which events are emailed to you. In-app notifications always appear in your inbox.">
+    <Section title="Notification preferences" description="Choose how each kind of event should reach you in this organization. New types start enabled.">
       {isLoading ? <Skeleton className="h-24" /> : isError ? <ErrorState error={error} onRetry={() => refetch()} title="Couldn't load preferences" />
-        : !data?.length ? <p className="text-sm text-muted-foreground">No configurable notification types were returned.</p>
         : (
           <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
-            {data.map((p) => (
-              <li key={p.type} className="flex items-center justify-between gap-3 px-4 py-3">
-                <Label htmlFor={`pref-${p.type}`} className="font-normal">{PREF_LABEL[p.type] ?? p.type.toLowerCase().replace(/_/g, " ")} by email</Label>
-                <input id={`pref-${p.type}`} type="checkbox" role="switch" className="size-4 accent-(--primary)" checked={p.emailEnabled} disabled={toggle.isPending}
-                  onChange={(e) => toggle.mutate({ type: p.type, emailEnabled: e.target.checked })} />
+            {mergePreferences(data ?? []).map((p) => (
+              <li key={p.notificationType} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                <span className="text-sm font-medium">{prefLabel(p.notificationType)}</span>
+                <div className="flex items-center gap-5">
+                  {([["inAppEnabled", "In-app"], ["emailEnabled", "Email"]] as const).map(([channel, label]) => (
+                    <label key={channel} htmlFor={`pref-${p.notificationType}-${channel}`} className="flex items-center gap-2 text-sm">
+                      <input id={`pref-${p.notificationType}-${channel}`} type="checkbox" role="switch" className="size-4 accent-(--primary)" checked={p[channel]} disabled={toggle.isPending}
+                        onChange={(e) => toggle.mutate({ notificationType: p.notificationType, channel, value: e.target.checked })} />
+                      {label}
+                    </label>
+                  ))}
+                </div>
               </li>
             ))}
           </ul>
         )}
-      <p className="text-xs text-muted-foreground">Email delivery isn&apos;t live on the backend yet, so these preferences are stored but won&apos;t send mail for now.</p>
+      <p className="text-xs text-muted-foreground">Your choices are saved to your account. The backend doesn&apos;t apply them to in-app notifications yet, and email delivery isn&apos;t live, so for now they&apos;re stored for when it does.</p>
     </Section>
   );
 }

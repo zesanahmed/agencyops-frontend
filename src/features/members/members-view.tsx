@@ -4,10 +4,11 @@ import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, MailPlus, Trash2, UsersRound } from "lucide-react";
+import { Copy, Lock, MailPlus, Trash2, UsersRound } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Avatar } from "@/components/ui/avatar";
+import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { Input, Select } from "@/components/ui/input";
@@ -20,18 +21,23 @@ import { ErrorState } from "@/components/shared/error-state";
 import { Pagination } from "@/components/shared/pagination";
 import { RoleBadge } from "@/components/shared/role-badge";
 import { Can, useOrg } from "@/features/organizations/org-context";
-import { qk } from "@/features/organizations/hooks";
 import { useUrlState } from "@/hooks/use-url-state";
 import { invitationApi, memberApi } from "@/lib/api/services";
 import { formatDate } from "@/lib/format";
+import { qk } from "@/lib/query-keys";
 import { ROLE_DESCRIPTION, ROLE_LABEL } from "@/lib/rbac";
 import { useAction } from "@/lib/use-action";
 import { useAuthStore } from "@/stores/auth-store";
-import type { Invitation, Membership, Role } from "@/types/domain";
+import { ASSIGNABLE_ROLES, invitationStatus, type AssignableRole, type Invitation, type InvitationStatus, type Membership } from "@/types/domain";
 
-const ROLES: Role[] = ["OWNER", "MANAGER", "TEAM_MEMBER"];
-const inviteSchema = z.object({ email: z.string().trim().min(1, "Email is required").email("Enter a valid email address"), role: z.enum(["OWNER", "MANAGER", "TEAM_MEMBER"]) });
+/** Mirrors backend createInvitationSchema: email ≤ 255, role MANAGER | TEAM_MEMBER (never OWNER). */
+const inviteSchema = z.object({
+  email: z.string().trim().min(1, "Email is required").max(255, "Email is too long").email("Enter a valid email address"),
+  role: z.enum(["MANAGER", "TEAM_MEMBER"]),
+});
 type InviteValues = z.infer<typeof inviteSchema>;
+
+const STATUS_TONE: Record<InvitationStatus, BadgeTone> = { pending: "info", accepted: "success", revoked: "neutral", expired: "warning" };
 
 export function MembersView() {
   const { can } = useOrg();
@@ -39,21 +45,21 @@ export function MembersView() {
     <Tabs defaultValue="members">
       <TabsList aria-label="People sections">
         <TabsTrigger value="members">Members</TabsTrigger>
-        {can("member.invite") ? <TabsTrigger value="invitations">Invitations</TabsTrigger> : null}
+        {can("invitation:read") ? <TabsTrigger value="invitations">Invitations</TabsTrigger> : null}
       </TabsList>
       <TabsContent value="members"><MemberList /></TabsContent>
-      {can("member.invite") ? <TabsContent value="invitations"><InvitationList /></TabsContent> : null}
+      {can("invitation:read") ? <TabsContent value="invitations"><InvitationList /></TabsContent> : null}
     </Tabs>
   );
 }
 
 function MemberList() {
-  const { organizationId: o } = useOrg();
+  const { organizationId: o, can } = useOrg();
   const me = useAuthStore((s) => s.user);
   const { page } = useUrlState();
   const { data, isLoading, isError, error, refetch } = useQuery({ queryKey: qk.members(o, { page }), queryFn: () => memberApi.list(o, { page, limit: 20 }), placeholderData: (p) => p });
-  const inv = [["organizations", o, "members"]];
-  const role = useAction({ fn: (v: { id: string; role: Role }) => memberApi.updateRole(o, v.id, v.role), invalidate: inv, success: "Role updated" });
+  const inv = [["organizations", o, "members"], qk.memberDirectory(o)];
+  const role = useAction({ fn: (v: { id: string; role: AssignableRole }) => memberApi.updateRole(o, v.id, v.role), invalidate: inv, success: "Role updated" });
   const remove = useAction({ fn: (id: string) => memberApi.remove(o, id), invalidate: inv, success: "Member removed" });
   const [removing, setRemoving] = useState<Membership | null>(null);
 
@@ -61,11 +67,15 @@ function MemberList() {
   if (isError) return <ErrorState error={error} onRetry={() => refetch()} title="Couldn't load members" />;
   if (!data?.items.length) return <EmptyState icon={UsersRound} title="No members found" />;
 
+  const canChangeRoles = can("membership:update");
+  const canRemove = can("membership:remove");
+
   return (
     <>
       <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface">
         {data.items.map((m) => {
-          const isMe = Boolean(me && (m.userId === me.id || m.email === me.email));
+          const isMe = Boolean(me && m.userId === me.id);
+          const isOwner = m.role === "OWNER";
           return (
             <li key={m.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
               <Avatar name={m.name} />
@@ -73,16 +83,23 @@ function MemberList() {
                 <p className="truncate text-sm font-medium">{m.name}{isMe ? <span className="ml-2 text-xs font-normal text-muted-foreground">(you)</span> : null}</p>
                 <p className="truncate text-xs text-muted-foreground">{m.email}</p>
               </div>
-              <Can permission="member.updateRole" fallback={<RoleBadge role={m.role} />}>
-                <Select aria-label={`Role for ${m.name}`} value={m.role} disabled={isMe || role.isPending} onChange={(e) => role.mutate({ id: m.id, role: e.target.value as Role })} className="w-auto min-w-36">
-                  {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+              {/* The OWNER's role is fixed by the backend ("only owner"), and you can't edit your own. */}
+              {canChangeRoles && !isOwner && !isMe ? (
+                <Select aria-label={`Role for ${m.name}`} value={m.role} disabled={role.isPending} onChange={(e) => role.mutate({ id: m.id, role: e.target.value as AssignableRole })} className="w-auto min-w-36">
+                  {ASSIGNABLE_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
                 </Select>
-              </Can>
-              <Can permission="member.remove"><Button variant="ghost" size="icon" disabled={isMe} aria-label={`Remove ${m.name}`} onClick={() => setRemoving(m)}><Trash2 /></Button></Can>
+              ) : (
+                <span className="inline-flex items-center gap-1.5">
+                  <RoleBadge role={m.role} />
+                  {isOwner ? <Lock className="size-3 text-muted-foreground" aria-label="Owner role can't be changed" /> : null}
+                </span>
+              )}
+              {canRemove && !isOwner && !isMe ? <Button variant="ghost" size="icon" aria-label={`Remove ${m.name}`} onClick={() => setRemoving(m)}><Trash2 /></Button> : null}
             </li>
           );
         })}
       </ul>
+      {!canChangeRoles ? <p className="mt-3 text-xs text-muted-foreground">Only an owner can change roles or remove members.</p> : null}
       <Pagination meta={data.meta} />
       <ConfirmDialog open={!!removing} onOpenChange={(v) => !v && setRemoving(null)} title="Remove member?" description={`${removing?.name} will lose access to this organization.`} confirmLabel="Remove" destructive onConfirm={() => remove.mutateAsync(removing!.id)} />
     </>
@@ -94,7 +111,7 @@ function InvitationList() {
   const { page } = useUrlState();
   const { data, isLoading, isError, error, refetch } = useQuery({ queryKey: qk.invitations(o, { page }), queryFn: () => invitationApi.list(o, { page, limit: 20 }), placeholderData: (p) => p });
   const [open, setOpen] = useState(false);
-  const [issued, setIssued] = useState<Invitation | null>(null);
+  const [issued, setIssued] = useState<{ invitation: Invitation; inviteToken: string | null } | null>(null);
   const inv = [["organizations", o, "invitations"]];
   const create = useAction({ fn: (v: InviteValues) => invitationApi.create(o, v), invalidate: inv });
   const revoke = useAction({ fn: (id: string) => invitationApi.revoke(o, id), invalidate: inv, success: "Invitation revoked" });
@@ -104,18 +121,22 @@ function InvitationList() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end"><Button onClick={() => setOpen(true)}><MailPlus /> Invite someone</Button></div>
+      <Can permission="invitation:create"><div className="flex justify-end"><Button onClick={() => setOpen(true)}><MailPlus /> Invite someone</Button></div></Can>
       {isLoading ? <Skeleton className="h-32" /> : isError ? <ErrorState error={error} onRetry={() => refetch()} title="Couldn't load invitations" /> : !data?.items.length ? (
-        <EmptyState icon={MailPlus} title="No pending invitations" description="Invite teammates by email and choose their role." />
+        <EmptyState icon={MailPlus} title="No invitations yet" description="Invite teammates by email and choose their role." />
       ) : (<>
         <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface">
-          {data.items.map((i) => (
-            <li key={i.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-              <div className="min-w-0 flex-1 basis-48"><p className="truncate text-sm font-medium">{i.email}</p><p className="text-xs text-muted-foreground">{i.status ? `${i.status.toLowerCase()} · ` : ""}expires {formatDate(i.expiresAt)}</p></div>
-              <RoleBadge role={i.role} />
-              <Button variant="ghost" size="icon" aria-label={`Revoke invitation for ${i.email}`} onClick={() => revoke.mutate(i.id)}><Trash2 /></Button>
-            </li>
-          ))}
+          {data.items.map((i) => {
+            const status = invitationStatus(i);
+            return (
+              <li key={i.id} className={`flex flex-wrap items-center gap-3 px-4 py-3 ${status === "pending" ? "" : "opacity-70"}`}>
+                <div className="min-w-0 flex-1 basis-48"><p className="truncate text-sm font-medium">{i.email}</p><p className="text-xs text-muted-foreground">{status === "pending" ? `Expires ${formatDate(i.expiresAt)}` : status === "accepted" ? `Accepted ${formatDate(i.acceptedAt)}` : status === "revoked" ? `Revoked ${formatDate(i.revokedAt)}` : `Expired ${formatDate(i.expiresAt)}`}</p></div>
+                <RoleBadge role={i.role} />
+                <Badge tone={STATUS_TONE[status]}>{status[0].toUpperCase() + status.slice(1)}</Badge>
+                {status === "pending" ? <Can permission="invitation:revoke"><Button variant="ghost" size="icon" aria-label={`Revoke invitation for ${i.email}`} onClick={() => revoke.mutate(i.id)}><Trash2 /></Button></Can> : null}
+              </li>
+            );
+          })}
         </ul>
         <Pagination meta={data.meta} />
       </>)}
@@ -133,11 +154,11 @@ function InvitationList() {
             </>
           ) : (
             <>
-              <DialogHeader title="Invite someone" description="They'll join this organization with the role you pick." />
+              <DialogHeader title="Invite someone" description="They'll join this organization with the role you pick. Re-inviting an email replaces its earlier pending invitation." />
               <form noValidate className="space-y-4" onSubmit={handleSubmit(async (v) => { const r = await create.mutateAsync(v).catch(() => null); if (r) setIssued(r); })}>
                 <div className="space-y-1.5"><Label htmlFor="inv-email">Email</Label><Input id="inv-email" type="email" autoFocus aria-invalid={!!errors.email} {...register("email")} />{errors.email ? <p className="text-xs text-danger">{errors.email.message}</p> : null}</div>
                 <div className="space-y-1.5"><Label htmlFor="inv-role">Role</Label>
-                  <Select id="inv-role" {...register("role")}>{ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}</Select>
+                  <Select id="inv-role" {...register("role")}>{ASSIGNABLE_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}</Select>
                   <p className="text-xs text-muted-foreground">{ROLE_DESCRIPTION[chosenRole]}</p></div>
                 <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button type="submit" loading={create.isPending}>Create invitation</Button></div>
               </form>

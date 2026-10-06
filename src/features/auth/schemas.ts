@@ -1,7 +1,8 @@
 import { z } from "zod";
 
-// Mirrors backend Zod rules where known; the backend remains authoritative
-// and its validation errors are surfaced by the form on submit.
+// Mirrors the backend (agencyops-api src/modules/auth/auth.validation.ts):
+//   name 1–150 · valid email · password 8–128 with NO composition rules.
+// The backend remains authoritative; its messages are shown on submit if they differ.
 export const loginSchema = z.object({
   email: z.string().trim().min(1, "Email is required").email("Enter a valid email address"),
   password: z.string().min(1, "Password is required"),
@@ -10,13 +11,9 @@ export type LoginValues = z.infer<typeof loginSchema>;
 
 export const registerSchema = z
   .object({
-    name: z.string().trim().min(2, "Name must be at least 2 characters").max(80, "Name is too long"),
+    name: z.string().trim().min(1, "Name is required").max(150, "Name is too long"),
     email: z.string().trim().min(1, "Email is required").email("Enter a valid email address"),
-    password: z
-      .string()
-      .min(8, "Use at least 8 characters")
-      .regex(/[A-Za-z]/, "Include at least one letter")
-      .regex(/\d/, "Include at least one number"),
+    password: z.string().min(8, "Password must be at least 8 characters").max(128, "Password must be at most 128 characters"),
     confirmPassword: z.string().min(1, "Confirm your password"),
   })
   .refine((v) => v.password === v.confirmPassword, { path: ["confirmPassword"], message: "Passwords don't match" });

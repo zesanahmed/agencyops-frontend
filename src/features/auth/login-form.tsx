@@ -11,17 +11,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toErrorMessage } from "@/lib/api/errors";
+import { safeNext } from "@/lib/auth/safe-next";
 import { cn } from "@/lib/utils";
 import { useAuth } from "./auth-provider";
 import { DEMO_ACCOUNTS, isDemoConfigured, type DemoAccount } from "./demo-accounts";
 import { loginSchema, type LoginValues } from "./schemas";
 
 const ROLE_ICON = { OWNER: Crown, MANAGER: Shield, TEAM_MEMBER: User } as const;
-
-function safeNext(next: string | null): string {
-  // Only same-origin relative paths; blocks open-redirects like //evil.com.
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/organizations";
-}
 
 export function LoginForm() {
   const { login } = useAuth();

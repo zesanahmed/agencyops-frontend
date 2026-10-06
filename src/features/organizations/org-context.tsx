@@ -4,11 +4,13 @@ import { createContext, useContext, useEffect, useMemo } from "react";
 import { can as canDo, type Permission } from "@/lib/rbac";
 import { useOrgStore } from "@/stores/org-store";
 import type { Role } from "@/types/domain";
-import { useOrgRole } from "./hooks";
+import { useOrgMembership } from "./hooks";
 
 interface OrgContextValue {
   organizationId: string;
   role: Role | undefined;
+  /** The caller's own membershipId in this organization (used to match assignees/authors). */
+  membershipId: string | undefined;
   roleLoading: boolean;
   can: (permission: Permission) => boolean;
 }
@@ -16,13 +18,13 @@ interface OrgContextValue {
 const OrgContext = createContext<OrgContextValue | null>(null);
 
 export function OrgProvider({ organizationId, children }: { organizationId: string; children: React.ReactNode }) {
-  const { role, isLoading } = useOrgRole(organizationId);
+  const { role, membershipId, isLoading } = useOrgMembership(organizationId);
   const setLast = useOrgStore((s) => s.setLast);
   useEffect(() => setLast(organizationId), [organizationId, setLast]);
 
   const value = useMemo<OrgContextValue>(
-    () => ({ organizationId, role, roleLoading: isLoading, can: (p) => canDo(role, p) }),
-    [organizationId, role, isLoading],
+    () => ({ organizationId, role, membershipId, roleLoading: isLoading, can: (p) => canDo(role, p) }),
+    [organizationId, role, membershipId, isLoading],
   );
   return <OrgContext.Provider value={value}>{children}</OrgContext.Provider>;
 }

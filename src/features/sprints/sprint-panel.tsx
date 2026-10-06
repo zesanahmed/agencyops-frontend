@@ -47,7 +47,7 @@ export function SprintPanel({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end"><Can permission="sprint.manage"><Button onClick={() => setCreating(true)}><Plus /> New sprint</Button></Can></div>
+      <div className="flex justify-end"><Can permission="sprint:create"><Button onClick={() => setCreating(true)}><Plus /> New sprint</Button></Can></div>
       {!data?.items.length ? (
         <EmptyState icon={CalendarRange} title="No sprints yet" description="Sprints time-box the work. Plan one with a goal and a date range." />
       ) : (
@@ -62,15 +62,13 @@ export function SprintPanel({ projectId }: { projectId: string }) {
                     <p className="text-sm text-muted-foreground">{formatDate(s.startDate)} → {formatDate(s.endDate)}</p>
                     {s.goal ? <p className="text-sm">{s.goal}</p> : null}
                   </div>
-                  <Can permission="sprint.manage">
-                    <div className="flex gap-2">
-                      {s.status === "PLANNED" ? (<>
-                        <Button size="sm" variant="secondary" loading={start.isPending && start.variables === s.id} onClick={() => start.mutate(s.id)}><Play /> Start</Button>
-                        <Button size="sm" variant="ghost" aria-label={`Delete ${s.name}`} onClick={() => setDeleting(s)}><Trash2 /></Button>
-                      </>) : null}
-                      {s.status === "ACTIVE" ? <Button size="sm" loading={complete.isPending && complete.variables === s.id} onClick={() => complete.mutate(s.id)}><CheckCheck /> Complete</Button> : null}
-                    </div>
-                  </Can>
+                  <div className="flex gap-2">
+                    {s.status === "PLANNED" ? (<>
+                      <Can permission="sprint:update"><Button size="sm" variant="secondary" loading={start.isPending && start.variables === s.id} onClick={() => start.mutate(s.id)}><Play /> Start</Button></Can>
+                      <Can permission="sprint:delete"><Button size="sm" variant="ghost" aria-label={`Delete ${s.name}`} onClick={() => setDeleting(s)}><Trash2 /></Button></Can>
+                    </>) : null}
+                    {s.status === "ACTIVE" ? <Can permission="sprint:update"><Button size="sm" loading={complete.isPending && complete.variables === s.id} onClick={() => complete.mutate(s.id)}><CheckCheck /> Complete</Button></Can> : null}
+                  </div>
                 </div>
                 {pct !== null ? (
                   <div className="mt-3 space-y-1">

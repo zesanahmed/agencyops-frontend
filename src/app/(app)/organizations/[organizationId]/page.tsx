@@ -1,17 +1,20 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { PageHeader } from "@/components/shared/page-header";
-import { Can } from "@/features/organizations/org-context";
-import { CreateProjectDialog } from "@/features/projects/project-form-dialog";
-import { ProjectList } from "@/features/projects/project-list";
+import { Overview } from "@/features/dashboard/overview";
 
-export const metadata: Metadata = { title: "Projects" };
+export const metadata: Metadata = { title: "Overview" };
 
-export default function ProjectsPage() {
+export default function OverviewPage() {
   return (
     <>
-      <PageHeader title="Projects" description="Every engagement your agency is running, with its sprints and tasks." actions={<Can permission="project.manage"><CreateProjectDialog /></Can>} />
-      <Suspense><ProjectList /></Suspense>
+      <PageHeader
+        title="Overview"
+        description="What's active, what's in review and what needs attention across this organization."
+      />
+      <Suspense>
+        <Overview />
+      </Suspense>
     </>
   );
 }

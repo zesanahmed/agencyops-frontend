@@ -1,14 +1,10 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { commentApi, memberApi, taskApi, type TaskInput } from "@/lib/api/services";
+import { commentApi, taskApi, type TaskInput } from "@/lib/api/services";
 import { useAction } from "@/lib/use-action";
-import { qk } from "@/features/organizations/hooks";
 
 const tasksKey = (o: string, p: string) => ["organizations", o, "projects", p, "tasks"];
-
-export const useAllMembers = (o: string) =>
-  useQuery({ queryKey: qk.members(o, { limit: 100 }), queryFn: () => memberApi.list(o, { limit: 100 }), staleTime: 60_000 });
 
 export const useSubtasks = (o: string, p: string, t: string) =>
   useQuery({ queryKey: [...tasksKey(o, p), t, "subtasks"], queryFn: () => taskApi.subtasks(o, p, t) });
@@ -23,10 +19,10 @@ export const useCreateTask = (o: string, p: string) =>
   useAction({ fn: (b: TaskInput) => taskApi.create(o, p, b), invalidate: [tasksKey(o, p)], success: "Task created" });
 
 export const useUpdateTask = (o: string, p: string, t: string) =>
-  useAction({ fn: (b: Partial<TaskInput> & { status?: string }) => taskApi.update(o, p, t, b), invalidate: [tasksKey(o, p)] });
+  useAction({ fn: (b: Partial<TaskInput>) => taskApi.update(o, p, t, b), invalidate: [tasksKey(o, p)] });
 
 export const useDeleteTask = (o: string, p: string) =>
-  useAction({ fn: (t: string) => taskApi.remove(o, p, t), invalidate: [tasksKey(o, p)], success: "Task deleted" });
+  useAction({ fn: (t: string) => taskApi.remove(o, p, t), invalidate: [tasksKey(o, p)], deferRefetch: true, success: "Task deleted" });
 
 export const useCreateSubtask = (o: string, p: string, t: string) =>
   useAction({ fn: (title: string) => taskApi.createSubtask(o, p, t, title), invalidate: [[...tasksKey(o, p), t, "subtasks"]], success: "Subtask added" });
