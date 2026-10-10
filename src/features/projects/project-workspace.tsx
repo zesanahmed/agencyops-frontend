@@ -18,6 +18,7 @@ import { TaskList } from "@/features/tasks/task-list";
 import { formatDate } from "@/lib/format";
 import { useDeleteProject, useProject, useUpdateProject } from "./hooks";
 import { ProjectPeople } from "./project-people";
+import { ProjectTeamsPanel } from "./project-teams-panel";
 
 export function ProjectWorkspace({ projectId }: { projectId: string }) {
   const { organizationId, can } = useOrg();
@@ -49,10 +50,12 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
         <TabsList aria-label="Project sections">
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
           <TabsTrigger value="sprints">Sprints</TabsTrigger>
+          <TabsTrigger value="teams">Teams</TabsTrigger>
           <TabsTrigger value="people">People</TabsTrigger>
         </TabsList>
         <TabsContent value="tasks"><TaskList projectId={projectId} /></TabsContent>
         <TabsContent value="sprints"><SprintPanel projectId={projectId} /></TabsContent>
+        <TabsContent value="teams"><ProjectTeamsPanel projectId={projectId} /></TabsContent>
         <TabsContent value="people"><ProjectPeople projectId={projectId} /></TabsContent>
       </Tabs>
       <ConfirmDialog open={confirming} onOpenChange={setConfirming} title="Delete this project?" description="Its sprints and tasks will no longer be accessible. This can't be undone from the UI." confirmLabel="Delete project" destructive

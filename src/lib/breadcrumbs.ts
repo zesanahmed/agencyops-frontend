@@ -9,7 +9,7 @@ const SEGMENT_LABEL: Record<string, string> = {
  * Builds breadcrumbs for /organizations/[orgId]/... paths. Pure, so it is unit
  * tested; entity names (org/project) are injected by the caller from cached queries.
  */
-export function buildCrumbs(pathname: string, names: { org?: string; project?: string } = {}): Crumb[] {
+export function buildCrumbs(pathname: string, names: { org?: string; project?: string; team?: string } = {}): Crumb[] {
   const parts = pathname.split("/").filter(Boolean);
   if (parts[0] !== "organizations" || parts.length < 2) return [];
   const orgId = parts[1];
@@ -27,5 +27,6 @@ export function buildCrumbs(pathname: string, names: { org?: string; project?: s
     crumbs.push({ label: names.project ?? "Project", href: rest.length > 2 ? projectHref : undefined });
     if (rest[2] === "tasks" && rest[3]) crumbs.push({ label: "Task" });
   }
+  if (section === "teams" && rest[1]) crumbs.push({ label: names.team ?? "Team" });
   return crumbs;
 }

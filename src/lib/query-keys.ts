@@ -10,6 +10,7 @@ export const qk = {
   teamMembers: (id: string, t: string) => ["organizations", id, "teams", t, "members"] as const,
   projects: (id: string, p?: object) => ["organizations", id, "projects", p ?? {}] as const,
   project: (id: string, p: string) => ["organizations", id, "projects", p] as const,
+  projectTeams: (id: string, p: string) => ["organizations", id, "projects", p, "teams"] as const,
   sprints: (id: string, p: string) => ["organizations", id, "projects", p, "sprints"] as const,
   tasks: (id: string, p: string, q?: object) => ["organizations", id, "projects", p, "tasks", q ?? {}] as const,
   task: (id: string, p: string, t: string) => ["organizations", id, "projects", p, "tasks", t] as const,

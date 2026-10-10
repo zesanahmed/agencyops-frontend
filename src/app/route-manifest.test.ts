@@ -17,6 +17,7 @@ const PAGES: { file: string; exportName: string; title: string }[] = [
   { file: `${ORG}/projects/[projectId]/page.tsx`, exportName: "ProjectPage", title: "Project" },
   { file: `${ORG}/projects/[projectId]/tasks/[taskId]/page.tsx`, exportName: "TaskPage", title: "Task" },
   { file: `${ORG}/teams/page.tsx`, exportName: "Page", title: "Teams" },
+  { file: `${ORG}/teams/[teamId]/page.tsx`, exportName: "TeamPage", title: "Team" },
   { file: `${ORG}/members/page.tsx`, exportName: "Page", title: "Members" },
   { file: `${ORG}/notifications/page.tsx`, exportName: "Page", title: "Notifications" },
   { file: `${ORG}/settings/page.tsx`, exportName: "Page", title: "Settings" },
@@ -26,6 +27,7 @@ const LOADING: { file: string; ariaLabel: string }[] = [
   { file: `${ORG}/loading.tsx`, ariaLabel: "Loading" },
   { file: `${ORG}/projects/[projectId]/loading.tsx`, ariaLabel: "Loading project" },
   { file: `${ORG}/projects/[projectId]/tasks/[taskId]/loading.tsx`, ariaLabel: "Loading task" },
+  { file: `${ORG}/teams/[teamId]/loading.tsx`, ariaLabel: "Loading team" },
 ];
 const LAYOUTS: { file: string; exportName: string; mustContain: string; mustNotContain?: string }[] = [
   { file: "(app)/layout.tsx", exportName: "AppLayout", mustContain: "AuthGate", mustNotContain: "OrgShell" },

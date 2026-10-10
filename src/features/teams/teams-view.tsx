@@ -1,46 +1,40 @@
 "use client";
 
 import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery } from "@tanstack/react-query";
-import { Plus, Trash2, UserPlus, UsersRound, X } from "lucide-react";
-import { z } from "zod";
-import { Avatar } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
-import { Input, Select, Textarea } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
-import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Plus, UsersRound } from "lucide-react";
+import { AvatarStack } from "@/components/shared/avatar-stack";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { SearchInput } from "@/components/shared/search-input";
-import { Can, useOrg } from "@/features/organizations/org-context";
-import { qk } from "@/features/organizations/hooks";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useMemberDirectory } from "@/features/members/use-member-directory";
+import { Can, useOrg } from "@/features/organizations/org-context";
 import { useUrlState } from "@/hooks/use-url-state";
-import { teamApi } from "@/lib/api/services";
-import { useAction } from "@/lib/use-action";
-import type { Team } from "@/types/domain";
+import { formatDate } from "@/lib/format";
+import type { Team, TeamMember } from "@/types/domain";
+import type { TeamAssignment } from "./workload";
+import { MAX_ASSIGNMENT_PROJECTS, useTeamAssignments, useTeamDirectory, useTeamsMembers } from "./hooks";
+import { TeamFormDialog } from "./team-form-dialog";
 
-const teamSchema = z.object({ name: z.string().trim().min(1, "Name is required").max(150, "Name is too long"), description: z.string().trim().max(2000, "Description is too long").optional() });
-type TeamValues = z.infer<typeof teamSchema>;
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 export function TeamsView() {
   const { organizationId: o } = useOrg();
+  const router = useRouter();
   const { get } = useUrlState();
   const search = get("search");
-  const selected = get("team");
-  // The backend's teams list takes only page/limit (no search), so load one full page and filter here. The term lives in the URL.
-  const query = useQuery({ queryKey: qk.teams(o, { all: true }), queryFn: () => teamApi.list(o, { limit: 100 }) });
-  const { isLoading, isError, error, refetch } = query;
-  const needle = search.trim().toLowerCase();
-  const teams = (query.data?.items ?? []).filter((t) => !needle || t.name.toLowerCase().includes(needle) || (t.description ?? "").toLowerCase().includes(needle));
-  const data = query.data ? { items: teams, meta: query.data.meta } : undefined;
   const [creating, setCreating] = useState(false);
-  const create = useAction({ fn: (v: TeamValues) => teamApi.create(o, { name: v.name, description: v.description || undefined }), invalidate: [["organizations", o, "teams"]], success: "Team created" });
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<TeamValues>({ resolver: zodResolver(teamSchema) });
+
+  // The backend's teams list takes only page/limit (no search), so all teams are loaded once and filtered here.
+  const teams = useTeamDirectory(o);
+  const needle = search.trim().toLowerCase();
+  const visible = teams.list.filter((t) => !needle || t.name.toLowerCase().includes(needle) || (t.description ?? "").toLowerCase().includes(needle));
+  const members = useTeamsMembers(o, visible.map((t) => t.id));
+  const assignments = useTeamAssignments(o);
+  const directory = useMemberDirectory(o);
 
   return (
     <div className="space-y-4">
@@ -48,80 +42,50 @@ export function TeamsView() {
         <SearchInput placeholder="Search teams…" label="Search teams" />
         <div className="sm:ml-auto"><Can permission="team:create"><Button onClick={() => setCreating(true)}><Plus /> New team</Button></Can></div>
       </div>
-      {isLoading ? <div className="grid gap-3 sm:grid-cols-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-28" />)}</div>
-        : isError ? <ErrorState error={error} onRetry={() => refetch()} title="Couldn't load teams" />
-        : !data?.items.length ? <EmptyState icon={UsersRound} title={search ? "No teams match" : "No teams yet"} description={search ? "Try a different search." : "Teams group people who work together, then get assigned to projects."} action={!search ? <Can permission="team:create"><Button onClick={() => setCreating(true)}><Plus /> Create a team</Button></Can> : undefined} />
-        : (<>
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {data.items.map((t) => (
-              <li key={t.id}>
-                <TeamCard team={t} selected={selected === t.id} />
-              </li>
-            ))}
-          </ul>
-          {data.meta.total > query.data!.items.length ? <p className="text-xs text-muted-foreground">Showing the first {query.data!.items.length} of {data.meta.total} teams.</p> : null}
-        </>)}
-      <Dialog open={creating} onOpenChange={(v) => { setCreating(v); if (!v) reset(); }}>
-        <DialogContent>
-          <DialogHeader title="New team" description="Give the team a name and what it owns." />
-          <form noValidate className="space-y-4" onSubmit={handleSubmit(async (v) => { const ok = await create.mutateAsync(v).then(() => true, () => false); if (ok) { setCreating(false); reset(); } })}>
-            <div className="space-y-1.5"><Label htmlFor="team-name">Name</Label><Input id="team-name" placeholder="Backend team" autoFocus aria-invalid={!!errors.name} {...register("name")} />{errors.name ? <p className="text-xs text-danger">{errors.name.message}</p> : null}</div>
-            <div className="space-y-1.5"><Label htmlFor="team-desc">Description <span className="font-normal text-muted-foreground">(optional)</span></Label><Textarea id="team-desc" className="min-h-16" {...register("description")} />{errors.description ? <p className="text-xs text-danger">{errors.description.message}</p> : null}</div>
-            <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setCreating(false)}>Cancel</Button><Button type="submit" loading={create.isPending}>Create team</Button></div>
-          </form>
-        </DialogContent>
-      </Dialog>
+
+      {teams.isLoading ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-36" />)}</div>
+        : teams.isError ? <ErrorState error={teams.error} onRetry={() => teams.refetch()} title="Couldn't load teams" />
+        : !visible.length ? (
+          <EmptyState icon={UsersRound} title={search ? "No teams match" : "No teams yet"}
+            description={search ? "Try a different search." : "A team groups the people who work together. Assign teams to projects to show who is responsible for what."}
+            action={!search ? <Can permission="team:create"><Button onClick={() => setCreating(true)}><Plus /> Create a team</Button></Can> : undefined} />
+        ) : (
+          <>
+            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {visible.map((t) => (
+                <li key={t.id}>
+                  <TeamCard team={t} orgId={o} members={members.byTeam.get(t.id)} assignments={assignments.isLoading ? undefined : assignments.byTeam.get(t.id) ?? []} nameOf={directory.nameOf} />
+                </li>
+              ))}
+            </ul>
+            {teams.total > teams.list.length ? <p className="text-xs text-muted-foreground">Showing the first {teams.list.length} of {teams.total} teams.</p> : null}
+            {assignments.truncated ? <p className="text-xs text-muted-foreground">Project counts cover your {MAX_ASSIGNMENT_PROJECTS} most recent projects.</p> : null}
+          </>
+        )}
+
+      <TeamFormDialog mode="create" open={creating} onOpenChange={setCreating} onSaved={(t) => router.push(`/organizations/${o}/teams/${t.id}`)} />
     </div>
   );
 }
 
-function TeamCard({ team, selected }: { team: Team; selected: boolean }) {
-  const { organizationId: o } = useOrg();
-  const [open, setOpen] = useState(selected);
-  const [deleting, setDeleting] = useState(false);
-  const key = ["organizations", o, "teams", team.id, "members"];
-  const members = useQuery({ queryKey: key, queryFn: () => teamApi.members(o, team.id), enabled: open });
-  const directory = useMemberDirectory(o);
-  const add = useAction({ fn: (m: string) => teamApi.addMember(o, team.id, m), invalidate: [key], success: "Member added" });
-  const remove = useAction({ fn: (id: string) => teamApi.removeMember(o, team.id, id), invalidate: [key], success: "Member removed" });
-  const del = useAction({ fn: () => teamApi.remove(o, team.id), invalidate: [["organizations", o, "teams"]], success: "Team deleted" });
-  const taken = new Set(members.data?.map((m) => m.membershipId));
-
+function TeamCard({ team, orgId, members, assignments, nameOf }: {
+  team: Team; orgId: string; members: TeamMember[] | undefined; assignments: TeamAssignment[] | undefined; nameOf: (id: string) => string;
+}) {
   return (
-    <div className="rounded-lg border border-border bg-surface">
-      <div className="flex items-start justify-between gap-3 p-4">
-        <button className="min-w-0 flex-1 text-left" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-          <h3 className="truncate font-medium">{team.name}</h3>
-          <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{team.description || "No description."}</p>
-          <p className="mt-2 text-xs text-muted-foreground">{open ? "Hide members" : "Show members"}</p>
-        </button>
-        <Can permission="team:delete"><Button variant="ghost" size="icon" aria-label={`Delete ${team.name}`} onClick={() => setDeleting(true)}><Trash2 /></Button></Can>
+    <Link href={`/organizations/${orgId}/teams/${team.id}`} className="flex h-full flex-col gap-4 rounded-lg border border-border bg-surface p-4 transition-colors hover:border-border-strong">
+      <div className="space-y-1">
+        <h3 className="font-medium leading-snug">{team.name}</h3>
+        <p className="line-clamp-2 text-sm text-muted-foreground">{team.description || "No description."}</p>
       </div>
-      {open ? (
-        <div className="space-y-3 border-t border-border p-4">
-          {members.isLoading ? <Skeleton className="h-16" /> : members.isError ? <ErrorState error={members.error} onRetry={() => members.refetch()} title="Couldn't load members" /> : members.data?.length ? (
-            <ul className="space-y-2">
-              {members.data.map((m) => {
-                const name = directory.nameOf(m.membershipId);
-                return (
-                  <li key={m.id} className="flex items-center gap-2 text-sm"><Avatar name={name} size="sm" /><span className="flex-1 truncate">{name}</span>
-                    <Can permission="team:manage-members"><button className="rounded-sm p-1 text-muted-foreground hover:bg-surface-muted" aria-label={`Remove ${name}`} onClick={() => remove.mutate(m.id)}><X className="size-3.5" /></button></Can></li>
-                );
-              })}
-            </ul>
-          ) : <p className="text-sm text-muted-foreground">No members yet.</p>}
-          <Can permission="team:manage-members">
-            <div className="flex gap-2">
-              <Select aria-label={`Add member to ${team.name}`} value="" disabled={add.isPending} onChange={(e) => e.target.value && add.mutate(e.target.value)}>
-                <option value="">Add a member…</option>
-                {directory.list.filter((m) => !taken.has(m.id)).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-              </Select>
-              <UserPlus className="hidden" aria-hidden />
-            </div>
-          </Can>
+      <div className="mt-auto space-y-2">
+        <div className="flex min-h-6 items-center justify-between gap-3">
+          {members ? (members.length ? <AvatarStack names={members.map((m) => nameOf(m.membershipId))} /> : <span className="text-xs text-muted-foreground">No members yet</span>) : <Skeleton className="h-6 w-24" />}
+          <span className="text-xs text-muted-foreground">
+            {members ? plural(members.length, "member") : "…"} · {assignments ? plural(assignments.length, "project") : "…"}
+          </span>
         </div>
-      ) : null}
-      <ConfirmDialog open={deleting} onOpenChange={setDeleting} title="Delete team?" description={`“${team.name}” will be removed. Projects it was assigned to keep their other members.`} confirmLabel="Delete team" destructive onConfirm={() => del.mutateAsync(undefined)} />
-    </div>
+        <p className="text-xs text-muted-foreground">Created {formatDate(team.createdAt)}</p>
+      </div>
+    </Link>
   );
 }

@@ -20,6 +20,19 @@ describe("buildCrumbs", () => {
       { label: "Task" },
     ]);
   });
+  it("builds the team trail with the team's name", () => {
+    expect(buildCrumbs("/organizations/o1/teams/t1", { org: "Acme", team: "Backend" })).toEqual([
+      { label: "Acme", href: "/organizations/o1" },
+      { label: "Teams", href: "/organizations/o1/teams" },
+      { label: "Backend" },
+    ]);
+  });
+  it("labels the teams list itself as the current page", () => {
+    expect(buildCrumbs("/organizations/o1/teams", { org: "Acme" })).toEqual([{ label: "Acme", href: "/organizations/o1" }, { label: "Teams" }]);
+  });
+  it("falls back to a generic team label while the name loads", () => {
+    expect(buildCrumbs("/organizations/o1/teams/t1", {})[2].label).toBe("Team");
+  });
   it("falls back to generic labels while names load", () => {
     expect(buildCrumbs("/organizations/o1/projects/p1", {})[2].label).toBe("Project");
   });

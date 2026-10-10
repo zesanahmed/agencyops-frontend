@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { projectApi } from "@/lib/api/services";
 import { buildCrumbs } from "@/lib/breadcrumbs";
 import { qk, useOrganization } from "@/features/organizations/hooks";
+import { useTeam } from "@/features/teams/hooks";
 import { useAuthStore } from "@/stores/auth-store";
 
 export function Breadcrumbs({ organizationId }: { organizationId: string }) {
@@ -17,7 +18,9 @@ export function Breadcrumbs({ organizationId }: { organizationId: string }) {
   // Same key as the project workspace, so this reuses its cache instead of refetching.
   const project = useQuery({ queryKey: qk.project(organizationId, projectId ?? ""), queryFn: () => projectApi.get(organizationId, projectId!), enabled: authed && Boolean(projectId) });
 
-  const crumbs = buildCrumbs(pathname, { org: org.data?.name, project: project.data?.name });
+  const teamId = pathname.match(/\/teams\/([^/]+)/)?.[1];
+  const team = useTeam(organizationId, teamId ?? "", Boolean(teamId)); // shares the cache with the team page
+  const crumbs = buildCrumbs(pathname, { org: org.data?.name, project: project.data?.name, team: team.data?.name });
   if (crumbs.length < 2) return null;
   return (
     <nav aria-label="Breadcrumb" className="min-w-0">

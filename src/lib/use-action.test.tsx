@@ -68,4 +68,17 @@ describe("useAction", () => {
     await act(async () => { await result.current.mutateAsync(undefined).catch(() => undefined); });
     expect(spy).not.toHaveBeenCalled();
   });
+
+  it("derives invalidation from the call's arguments (assigning a team to different projects)", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    const spy = vi.spyOn(qc, "invalidateQueries");
+    const wrapper = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+    const { result } = renderHook(() => useAction({
+      fn: async (v: { projectId: string }) => v.projectId,
+      invalidate: (v, data) => [["organizations", "o1", "projects", v.projectId, "teams"], ["echo", data]],
+    }), { wrapper });
+    await act(async () => { await result.current.mutateAsync({ projectId: "p9" }); });
+    const keys = spy.mock.calls.map((c) => c[0]!.queryKey);
+    expect(keys).toEqual([["organizations", "o1", "projects", "p9", "teams"], ["echo", "p9"]]);
+  });
 });

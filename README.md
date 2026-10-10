@@ -81,10 +81,25 @@ copy of the real backend and a real PostgreSQL.
   sprints and invitations take only `page`/`limit`), so the UI only offers filters the backend honours.
 - **Permissions** mirror `src/modules/rbac/permissions.ts` in `src/lib/rbac.ts` (UI only; the backend is
   authoritative). `src/lib/rbac.test.ts` and `src/lib/api/contract.test.ts` pin both to the backend.
-- **No CORS** is configured on the backend, and the refresh cookie is `SameSite=Strict` with path
-  `/api/v1/auth`, so the browser talks to the backend through this app's same-origin `/api/v1` rewrite
-  (`BACKEND_ORIGIN`, fixed at build time).
+- The refresh cookie is `SameSite=Strict` with path `/api/v1/auth`, so the browser talks to the backend
+  through this app's same-origin `/api/v1` rewrite (`BACKEND_ORIGIN`, fixed at build time). The backend now
+  also configures CORS, but this app doesn't rely on it.
+- **Teams:** names are unique per organization (409); `description` is a string (send `""` to clear, not `null`);
+  a team's members are *not* filtered by organization membership, so someone removed from the organization
+  can still appear on a team ("Former member"); assigning a team to a project does **not** add its people to
+  the project; and the backend still lists assignments of soft-deleted teams (shown as "Deleted team").
+  There is no "projects of a team" endpoint, so those are derived from each project's assignments.
 
 If the backend changes a shape, update `src/types/domain.ts`, `src/lib/api/mappers.ts` and the contract
 tests together. `npm run probe:api` prints the live response shapes to check for drift.
+
+## Deployment notes
+
+- `BACKEND_ORIGIN` is read at **build time** (it configures the rewrite), so set it before building.
+- **Rate limits.** The backend limits register, login and the public invitation routes to 10 requests per
+  15 minutes and refresh to 30, keyed by `req.ip`, and it does not set Express `trust proxy`. Behind this app's
+  rewrite the backend therefore sees the *frontend's* address, not each user's, so every user would share those
+  budgets. Before going live, set `trust proxy` on the backend (and confirm your host forwards the client IP in
+  `X-Forwarded-For`), or key the auth limiters by something per-user such as the submitted email. A 429 on
+  refresh is treated as a temporary outage (the session is kept and a retry is offered), not a sign-out.
 

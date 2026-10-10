@@ -17,7 +17,8 @@ import { ApiError } from "@/lib/api/errors";
  */
 export function useAction<TVars, TData = unknown>(opts: {
   fn: (vars: TVars) => Promise<TData>;
-  invalidate?: QueryKey[];
+  /** Static prefixes, or derived from the call (e.g. the project a team was assigned to). */
+  invalidate?: QueryKey[] | ((vars: TVars, data: TData) => QueryKey[]);
   deferRefetch?: boolean;
   success?: string | ((data: TData, vars: TVars) => string);
 }) {
@@ -25,7 +26,8 @@ export function useAction<TVars, TData = unknown>(opts: {
   return useMutation({
     mutationFn: opts.fn,
     onSuccess: async (data, vars) => {
-      await Promise.all((opts.invalidate ?? []).map((queryKey) => qc.invalidateQueries({ queryKey, refetchType: opts.deferRefetch ? "none" : "active" })));
+      const keys = typeof opts.invalidate === "function" ? opts.invalidate(vars, data) : (opts.invalidate ?? []);
+      await Promise.all(keys.map((queryKey) => qc.invalidateQueries({ queryKey, refetchType: opts.deferRefetch ? "none" : "active" })));
       if (opts.success) toast.success(typeof opts.success === "function" ? opts.success(data, vars) : opts.success);
     },
     onError: (e) => {
