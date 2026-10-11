@@ -7,6 +7,29 @@ export function formatDate(value?: string | null): string {
   return Number.isNaN(d.getTime()) ? "—" : dateFmt.format(d);
 }
 
+/**
+ * Project and sprint dates are calendar dates the backend stores as UTC midnight. Formatting them in
+ * the viewer's time zone would show the previous day west of UTC, so these two helpers stay in UTC.
+ */
+const calendarFmt = new Intl.DateTimeFormat("en", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
+export function formatCalendarDate(value?: string | null): string {
+  if (!value) return "—";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? "—" : calendarFmt.format(d);
+}
+
+/** ISO timestamp -> the `YYYY-MM-DD` an `<input type="date">` expects ("" when absent). */
+export function toDateInputValue(value?: string | null): string {
+  if (!value) return "";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
+}
+
+/** `YYYY-MM-DD` from a date input -> the UTC-midnight ISO string the backend stores. */
+export function fromDateInputValue(value: string): string {
+  return new Date(`${value}T00:00:00.000Z`).toISOString();
+}
+
 export function formatDateTime(value?: string | null): string {
   if (!value) return "—";
   const d = new Date(value);

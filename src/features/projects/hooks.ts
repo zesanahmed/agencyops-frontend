@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { projectApi, sprintApi, taskApi, type ListParams } from "@/lib/api/services";
+import { projectApi, sprintApi, taskApi, type ListParams, type ProjectInput } from "@/lib/api/services";
 import { useAction } from "@/lib/use-action";
 import { qk } from "@/features/organizations/hooks";
 
@@ -20,11 +20,14 @@ export const useTasks = (o: string, p: string, q: ListParams) =>
 export const useTask = (o: string, p: string, t: string) =>
   useQuery({ queryKey: qk.task(o, p, t), queryFn: () => taskApi.get(o, p, t) });
 
+export const useProjectMembers = (o: string, p: string) =>
+  useQuery({ queryKey: ["organizations", o, "projects", p, "members"], queryFn: () => projectApi.members(o, p) });
+
 export const useCreateProject = (o: string) =>
-  useAction({ fn: (b: { name: string; description?: string }) => projectApi.create(o, b), invalidate: [["organizations", o, "projects"]], success: (p) => `${p.name} created` });
+  useAction({ fn: (b: ProjectInput & { name: string }) => projectApi.create(o, b), invalidate: [["organizations", o, "projects"]], success: (p) => `${p.name} created` });
 
 export const useUpdateProject = (o: string, p: string) =>
-  useAction({ fn: (b: { name?: string; description?: string; status?: string }) => projectApi.update(o, p, b), invalidate: [["organizations", o, "projects"]], success: "Project updated" });
+  useAction({ fn: (b: ProjectInput) => projectApi.update(o, p, b), invalidate: [["organizations", o, "projects"]], success: "Project updated" });
 
 export const useDeleteProject = (o: string) =>
   useAction({ fn: (p: string) => projectApi.remove(o, p), invalidate: [["organizations", o, "projects"]], deferRefetch: true, success: "Project deleted" });
