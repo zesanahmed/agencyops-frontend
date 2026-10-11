@@ -12,8 +12,9 @@ import { Select } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Can, useOrg } from "@/features/organizations/org-context";
 import { useUrlState } from "@/hooks/use-url-state";
-import { formatDate } from "@/lib/format";
+import { formatCalendarDate, formatDate } from "@/lib/format";
 import { CreateProjectDialog } from "./project-form-dialog";
+import { ProjectScheduleBadge } from "./project-schedule-badge";
 import { useProjects } from "./hooks";
 
 const SORTS = [
@@ -21,6 +22,7 @@ const SORTS = [
   { value: "createdAt:asc", label: "Oldest first" },
   { value: "name:asc", label: "Name A–Z" },
   { value: "name:desc", label: "Name Z–A" },
+  { value: "dueDate:asc", label: "Due soonest" },
 ];
 
 export function ProjectList() {
@@ -66,7 +68,10 @@ export function ProjectList() {
                     <ProjectStatusBadge status={p.status} />
                   </div>
                   <p className="line-clamp-2 flex-1 text-sm text-muted-foreground">{p.description || "No description yet."}</p>
-                  <p className="text-xs text-muted-foreground">Created {formatDate(p.createdAt)}</p>
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
+                    <span>{p.startDate || p.dueDate ? `${formatCalendarDate(p.startDate)} → ${formatCalendarDate(p.dueDate)}` : `Created ${formatDate(p.createdAt)}`}</span>
+                    <ProjectScheduleBadge project={p} />
+                  </div>
                 </Link>
               </li>
             ))}
