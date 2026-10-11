@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { UserPlus, UsersRound, X } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -13,12 +12,13 @@ import { RoleBadge } from "@/components/shared/role-badge";
 import { Can, useOrg } from "@/features/organizations/org-context";
 import { useMemberDirectory } from "@/features/members/use-member-directory";
 import { projectApi } from "@/lib/api/services";
+import { useProjectMembers } from "./hooks";
 import { useAction } from "@/lib/use-action";
 
 export function ProjectPeople({ projectId }: { projectId: string }) {
   const { organizationId: o } = useOrg();
   const key = ["organizations", o, "projects", projectId, "members"];
-  const { data, isLoading, isError, error, refetch } = useQuery({ queryKey: key, queryFn: () => projectApi.members(o, projectId) });
+  const { data, isLoading, isError, error, refetch } = useProjectMembers(o, projectId);
   const directory = useMemberDirectory(o);
   const [pick, setPick] = useState("");
   const add = useAction({ fn: (m: string) => projectApi.addMember(o, projectId, m), invalidate: [key], success: "Member added to project" });

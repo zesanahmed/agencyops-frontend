@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,10 +15,18 @@ import { PROJECT_STATUSES, ProjectStatusBadge, statusLabel } from "@/components/
 import { Can, useOrg } from "@/features/organizations/org-context";
 import { SprintPanel } from "@/features/sprints/sprint-panel";
 import { TaskList } from "@/features/tasks/task-list";
-import { formatDate } from "@/lib/format";
+import { useUrlState } from "@/hooks/use-url-state";
+import { formatCalendarDate, formatDate } from "@/lib/format";
 import { useDeleteProject, useProject, useUpdateProject } from "./hooks";
+import { ProjectFormDialog } from "./project-form-dialog";
+import { ProjectOverview } from "./project-overview";
 import { ProjectPeople } from "./project-people";
+import { ProjectScheduleBadge } from "./project-schedule-badge";
 import { ProjectTeamsPanel } from "./project-teams-panel";
+
+const TABS = ["overview", "tasks", "sprints", "teams", "people"] as const;
+type Tab = (typeof TABS)[number];
+const isTab = (v: string): v is Tab => (TABS as readonly string[]).includes(v);
 
 export function ProjectWorkspace({ projectId }: { projectId: string }) {
   const { organizationId, can } = useOrg();
@@ -27,6 +35,12 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
   const update = useUpdateProject(organizationId, projectId);
   const del = useDeleteProject(organizationId);
   const [confirming, setConfirming] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const { get, set } = useUrlState();
+  const tabParam = get("tab", "overview");
+  const tab: Tab = isTab(tabParam) ? tabParam : "overview";
+  // The active tab lives in the URL (?tab=) so a view can be shared. Switching tabs drops the other tab's list filters.
+  const openTab = (next: string) => set({ tab: next === "overview" ? "" : next, status: "", priority: "", search: "", page: "" });
 
   if (isLoading) return <div className="space-y-4"><Skeleton className="h-10 w-72" /><Skeleton className="h-10 w-full" /><Skeleton className="h-64" /></div>;
   if (isError || !project) return <ErrorState error={error} onRetry={() => refetch()} title="Couldn't load this project" />;
@@ -38,26 +52,30 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
       <PageHeader
         title={project.name}
         description={project.description || undefined}
-        eyebrow={<span className="flex items-center gap-2"><ProjectStatusBadge status={project.status} /> Created {formatDate(project.createdAt)}</span>}
+        eyebrow={<span className="flex flex-wrap items-center gap-2"><ProjectStatusBadge status={project.status} /><ProjectScheduleBadge project={project} /><span>{project.startDate || project.dueDate ? `${formatCalendarDate(project.startDate)} → ${formatCalendarDate(project.dueDate)}` : `Created ${formatDate(project.createdAt)}`}</span></span>}
         actions={editable ? (<>
           <Select aria-label="Project status" value={project.status} disabled={update.isPending} onChange={(e) => update.mutate({ status: e.target.value })} className="w-auto">
             {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{statusLabel.project(s)}</option>)}
           </Select>
+          <Button variant="secondary" size="icon" aria-label="Edit project" onClick={() => setEditing(true)}><Pencil /></Button>
           <Can permission="project:delete"><Button variant="ghost" size="icon" aria-label="Delete project" onClick={() => setConfirming(true)}><Trash2 /></Button></Can>
         </>) : undefined}
       />
-      <Tabs defaultValue="tasks">
+      <Tabs value={tab} onValueChange={openTab}>
         <TabsList aria-label="Project sections">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
           <TabsTrigger value="sprints">Sprints</TabsTrigger>
           <TabsTrigger value="teams">Teams</TabsTrigger>
           <TabsTrigger value="people">People</TabsTrigger>
         </TabsList>
+        <TabsContent value="overview"><ProjectOverview project={project} onOpenTab={openTab} /></TabsContent>
         <TabsContent value="tasks"><TaskList projectId={projectId} /></TabsContent>
         <TabsContent value="sprints"><SprintPanel projectId={projectId} /></TabsContent>
         <TabsContent value="teams"><ProjectTeamsPanel projectId={projectId} /></TabsContent>
         <TabsContent value="people"><ProjectPeople projectId={projectId} /></TabsContent>
       </Tabs>
+      <ProjectFormDialog mode="edit" project={project} open={editing} onOpenChange={setEditing} />
       <ConfirmDialog open={confirming} onOpenChange={setConfirming} title="Delete this project?" description="Its sprints and tasks will no longer be accessible. This can't be undone from the UI." confirmLabel="Delete project" destructive
         onConfirm={async () => { await del.mutateAsync(projectId); router.replace(`/organizations/${organizationId}/projects`); }} />
     </>
