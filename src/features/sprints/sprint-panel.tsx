@@ -16,19 +16,11 @@ import { SprintStatusBadge } from "@/components/shared/status-badge";
 import { Can, useOrg } from "@/features/organizations/org-context";
 import { useSprints } from "@/features/projects/hooks";
 import { sprintApi } from "@/lib/api/services";
+import { timeElapsedPct } from "@/features/projects/project-metrics";
 import { formatDate } from "@/lib/format";
 import { useAction } from "@/lib/use-action";
 import { sprintSchema, type SprintValues } from "@/features/tasks/schemas";
 import type { Sprint } from "@/types/domain";
-
-/** Fraction of the date range elapsed — a schedule signal, not task completion. */
-function elapsedPct(s: Sprint): number | null {
-  if (!s.startDate || !s.endDate) return null;
-  const a = new Date(s.startDate).getTime();
-  const b = new Date(s.endDate).getTime();
-  if (!(b > a)) return null;
-  return Math.max(0, Math.min(100, ((Date.now() - a) / (b - a)) * 100));
-}
 
 export function SprintPanel({ projectId }: { projectId: string }) {
   const { organizationId: o } = useOrg();
@@ -53,7 +45,7 @@ export function SprintPanel({ projectId }: { projectId: string }) {
       ) : (
         <ul className="space-y-3">
           {data.items.map((s) => {
-            const pct = s.status === "ACTIVE" ? elapsedPct(s) : null;
+            const pct = s.status === "ACTIVE" ? timeElapsedPct(s.startDate, s.endDate) : null;
             return (
               <li key={s.id} className="rounded-lg border border-border bg-surface p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
