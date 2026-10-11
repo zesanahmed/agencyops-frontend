@@ -90,6 +90,13 @@ copy of the real backend and a real PostgreSQL.
   the project; and the backend still lists assignments of soft-deleted teams (shown as "Deleted team").
   There is no "projects of a team" endpoint, so those are derived from each project's assignments.
 
+- **Projects:** the slug is derived from the name, so a duplicate name is a 409 ("slug already exists"), shown on the
+  Name field. `startDate`/`dueDate` are optional UTC calendar dates; the "due on or after start" rule only runs when
+  **both** are in the request body, so the edit form always sends both. A date **cannot be cleared**: the backend
+  coerces `null` to 1 Jan 1970, so the UI refuses to send it. Clearing the description sends `""`. Project lists sort by
+  `createdAt`, `name` or `dueDate`. There are no per-project counts, so the Overview tab derives progress from the first
+  100 top-level tasks (and says so when there are more).
+
 If the backend changes a shape, update `src/types/domain.ts`, `src/lib/api/mappers.ts` and the contract
 tests together. `npm run probe:api` prints the live response shapes to check for drift.
 
