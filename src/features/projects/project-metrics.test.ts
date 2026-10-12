@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dueSchedule, pickFocusSprint, projectSchedule, taskSchedule, scheduleLabel, sprintTaskProgress, summarizeTasks, timeElapsedPct } from "./project-metrics";
+import { dueSchedule, orderSprints, pickFocusSprint, projectSchedule, taskSchedule, scheduleLabel, sprintTaskProgress, summarizeTasks, timeElapsedPct } from "./project-metrics";
 import type { Sprint, Task } from "@/types/domain";
 
 const task = (o: Partial<Task>): Task => ({
@@ -89,5 +89,19 @@ describe("taskSchedule / dueSchedule", () => {
   });
   it("treats the due day itself as due today (late evening UTC is still that day)", () => {
     expect(dueSchedule("2026-06-10T00:00:00.000Z", false, NOW)).toEqual({ state: "due-soon", daysLeft: 0 });
+  });
+});
+
+describe("orderSprints", () => {
+  it("puts the active sprint first, planned next (soonest first), then completed (latest first), without mutating", () => {
+    const input = [
+      sprint({ id: "old", status: "COMPLETED", startDate: "2025-01-01T00:00:00Z" }),
+      sprint({ id: "later", status: "PLANNED", startDate: "2026-03-01T00:00:00Z" }),
+      sprint({ id: "recent", status: "COMPLETED", startDate: "2025-06-01T00:00:00Z" }),
+      sprint({ id: "now", status: "ACTIVE" }),
+      sprint({ id: "soon", status: "PLANNED", startDate: "2026-02-01T00:00:00Z" }),
+    ];
+    expect(orderSprints(input).map((s) => s.id)).toEqual(["now", "soon", "later", "recent", "old"]);
+    expect(input[0].id).toBe("old");
   });
 });

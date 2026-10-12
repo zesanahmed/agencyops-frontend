@@ -99,3 +99,14 @@ export function sprintTaskProgress(tasks: Task[], sprintId: string): { total: nu
   const done = inSprint.filter((t) => t.status === "DONE").length;
   return { total: inSprint.length, done, pct: inSprint.length === 0 ? 0 : Math.round((done / inSprint.length) * 100) };
 }
+
+const SPRINT_RANK = { ACTIVE: 0, PLANNED: 1, COMPLETED: 2 } as const;
+
+/** Active first, then planned (soonest first), then completed (most recent first). Does not mutate the input. */
+export function orderSprints(sprints: Sprint[]): Sprint[] {
+  return [...sprints].sort((a, b) => {
+    const r = SPRINT_RANK[a.status] - SPRINT_RANK[b.status];
+    if (r !== 0) return r;
+    return a.status === "COMPLETED" ? b.startDate.localeCompare(a.startDate) : a.startDate.localeCompare(b.startDate);
+  });
+}
