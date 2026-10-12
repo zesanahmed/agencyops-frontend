@@ -13,11 +13,12 @@ import { StatCard } from "@/components/shared/stat-card";
 import { useMemberDirectory } from "@/features/members/use-member-directory";
 import { useOrg } from "@/features/organizations/org-context";
 import { useProjectTeams, useTeamDirectory } from "@/features/teams/hooks";
+import { ScheduleBadge } from "./project-schedule-badge";
 import { formatCalendarDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Project, TaskStatus } from "@/types/domain";
 import { useProjectMembers, useSprints, useTasks } from "./hooks";
-import { pickFocusSprint, projectSchedule, scheduleLabel, sprintTaskProgress, summarizeTasks, timeElapsedPct } from "./project-metrics";
+import { pickFocusSprint, projectSchedule, taskSchedule, scheduleLabel, sprintTaskProgress, summarizeTasks, timeElapsedPct } from "./project-metrics";
 
 const TASK_PAGE = 100; // backend maximum page size
 const SEGMENT: Record<TaskStatus, string> = {
@@ -54,7 +55,7 @@ export function ProjectOverview({ project, onOpenTab }: { project: Project; onOp
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Progress" value={`${summary.pct}%`} hint={summary.total ? `${summary.done} of ${summary.total} tasks done` : "No tasks yet"} />
-        <StatCard label="Open tasks" value={summary.open} hint={summary.total ? `${summary.byStatus.IN_PROGRESS} in progress` : undefined} />
+        <StatCard label="Open tasks" value={summary.open} hint={summary.overdue.length ? `${summary.overdue.length} overdue` : summary.total ? `${summary.byStatus.IN_PROGRESS} in progress` : undefined} />
         <StatCard label="Unassigned" value={summary.unassigned} hint="open tasks with no owner" />
         <StatCard label="Schedule" value={schedule.state === "closed" ? statusLabel.project(project.status) : scheduleLabel(schedule) || "No due date"}
           hint={project.startDate || project.dueDate ? `${formatCalendarDate(project.startDate)} → ${formatCalendarDate(project.dueDate)}` : "Add dates by editing the project"} />
@@ -87,13 +88,14 @@ export function ProjectOverview({ project, onOpenTab }: { project: Project; onOp
           <section aria-labelledby="ov-attention" className="rounded-lg border border-border bg-surface">
             <h2 id="ov-attention" className="px-4 pt-4 text-sm font-semibold">Needs attention</h2>
             {summary.attention.length === 0 ? (
-              <p className="flex items-center gap-2 px-4 pb-4 pt-2 text-sm text-muted-foreground"><CircleCheck className="size-4 text-success" aria-hidden />No open urgent or high-priority tasks.</p>
+              <p className="flex items-center gap-2 px-4 pb-4 pt-2 text-sm text-muted-foreground"><CircleCheck className="size-4 text-success" aria-hidden />No overdue, urgent or high-priority tasks open.</p>
             ) : (
               <ul className="mt-2 divide-y divide-border">
                 {summary.attention.slice(0, 5).map((t) => (
                   <li key={t.id}>
                     <Link href={taskHref(t.id)} className="flex items-center gap-3 px-4 py-2.5 hover:bg-surface-muted">
                       <span className="min-w-0 flex-1 truncate text-sm">{t.title}</span>
+                      <ScheduleBadge schedule={taskSchedule(t)} />
                       <PriorityBadge priority={t.priority} />
                       {t.assigneeMembershipId ? <Avatar name={directory.nameOf(t.assigneeMembershipId)} size="sm" /> : <span className="text-xs text-muted-foreground">Unassigned</span>}
                     </Link>

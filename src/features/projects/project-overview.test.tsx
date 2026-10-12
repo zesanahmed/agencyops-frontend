@@ -69,9 +69,23 @@ describe("ProjectOverview", () => {
     expect(screen.queryByText("Already shipped")).not.toBeInTheDocument();
   });
 
+  it("flags overdue open tasks first on the overview, and counts them on the open-tasks card", () => {
+    withTasks([
+      task({ id: "a", title: "Urgent but on time", priority: "URGENT" }),
+      task({ id: "b", title: "Quietly late", priority: "LOW", dueDate: day(-4) }),
+      task({ id: "c", title: "Finished late", status: "DONE", dueDate: day(-9) }),
+    ]);
+    render(<ProjectOverview project={PROJECT} onOpenTab={vi.fn()} />);
+    const links = within(screen.getByRole("region", { name: "Needs attention" })).getAllByRole("link");
+    expect(links.map((l) => l.textContent)).toEqual([expect.stringContaining("Quietly late"), expect.stringContaining("Urgent but on time")]);
+    expect(links[0]).toHaveTextContent("4 days overdue");
+    expect(screen.getByText("Open tasks").parentElement).toHaveTextContent("1 overdue");
+    expect(screen.queryByText("Finished late")).not.toBeInTheDocument();
+  });
+
   it("shows a calm message when nothing needs attention, and an empty-work hint for a new project", () => {
     render(<ProjectOverview project={PROJECT} onOpenTab={vi.fn()} />);
-    expect(screen.getByText("No open urgent or high-priority tasks.")).toBeInTheDocument();
+    expect(screen.getByText("No overdue, urgent or high-priority tasks open.")).toBeInTheDocument();
     expect(screen.getByText(/Add tasks in the Tasks tab/)).toBeInTheDocument();
     expect(screen.getByText("No active sprint")).toBeInTheDocument();
     expect(screen.getByText("No one is on this project yet.")).toBeInTheDocument();
@@ -114,7 +128,7 @@ describe("ProjectOverview", () => {
   it("shows the date schedule for a completed project instead of an overdue warning", () => {
     render(<ProjectOverview project={{ ...PROJECT, status: "COMPLETED", dueDate: day(-30) }} onOpenTab={vi.fn()} />);
     expect(screen.getByText("Schedule").parentElement).toHaveTextContent("Completed");
-    expect(screen.queryByText(/overdue/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\d+ days? overdue/)).not.toBeInTheDocument();
   });
 
   it("deep-links to the Tasks and People tabs", async () => {

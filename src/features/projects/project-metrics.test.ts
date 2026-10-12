@@ -22,7 +22,21 @@ describe("summarizeTasks", () => {
   });
 
   it("is all zeros for a project with no tasks", () => {
-    expect(summarizeTasks([])).toMatchObject({ total: 0, done: 0, open: 0, pct: 0, unassigned: 0, attention: [] });
+    expect(summarizeTasks([])).toMatchObject({ total: 0, done: 0, open: 0, pct: 0, unassigned: 0, overdue: [], attention: [] });
+  });
+
+  it("puts overdue open work first (most overdue first), then urgent, then high, without listing a task twice", () => {
+    const NOW = Date.UTC(2026, 5, 10, 12);
+    const s = summarizeTasks([
+      task({ id: "high", priority: "HIGH" }),
+      task({ id: "late2", dueDate: "2026-06-08T00:00:00.000Z", priority: "URGENT" }),
+      task({ id: "late5", dueDate: "2026-06-05T00:00:00.000Z", priority: "LOW" }),
+      task({ id: "urgent", priority: "URGENT" }),
+      task({ id: "doneLate", dueDate: "2026-06-01T00:00:00.000Z", status: "DONE" }),
+      task({ id: "future", dueDate: "2026-07-01T00:00:00.000Z" }),
+    ], NOW);
+    expect(s.overdue.map((t) => t.id)).toEqual(["late5", "late2"]);
+    expect(s.attention.map((t) => t.id)).toEqual(["late5", "late2", "urgent", "high"]);
   });
 });
 

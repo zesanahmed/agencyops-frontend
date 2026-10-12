@@ -11,17 +11,22 @@ export interface TaskSummary {
   byStatus: Record<TaskStatus, number>;
   /** Open tasks nobody is assigned to. */
   unassigned: number;
-  /** Open URGENT then HIGH tasks, most urgent first: the work most likely to need a look. */
+  /** Open tasks past their due day, most overdue first. */
+  overdue: Task[];
+  /** Work that likely needs a look: overdue tasks first, then open URGENT, then open HIGH. */
   attention: Task[];
 }
 
 /** Summarises top-level tasks (the backend task list never includes subtasks). */
-export function summarizeTasks(tasks: Task[]): TaskSummary {
+export function summarizeTasks(tasks: Task[], now: number = Date.now()): TaskSummary {
   const byStatus = Object.fromEntries(TASK_STATUSES.map((s) => [s, 0])) as Record<TaskStatus, number>;
   for (const t of tasks) byStatus[t.status] += 1;
   const total = tasks.length;
   const done = byStatus.DONE;
   const open = tasks.filter((t) => t.status !== "DONE");
+  const daysLeft = (t: Task) => taskSchedule(t, now).daysLeft ?? 0;
+  const overdue = open.filter((t) => taskSchedule(t, now).state === "overdue").sort((a, b) => daysLeft(a) - daysLeft(b));
+  const overdueIds = new Set(overdue.map((t) => t.id));
   const rank = (t: Task) => (t.priority === "URGENT" ? 0 : 1);
   return {
     total,
@@ -30,7 +35,11 @@ export function summarizeTasks(tasks: Task[]): TaskSummary {
     pct: total === 0 ? 0 : Math.round((done / total) * 100),
     byStatus,
     unassigned: open.filter((t) => !t.assigneeMembershipId).length,
-    attention: open.filter((t) => t.priority === "URGENT" || t.priority === "HIGH").sort((a, b) => rank(a) - rank(b)),
+    overdue,
+    attention: [
+      ...overdue,
+      ...open.filter((t) => !overdueIds.has(t.id) && (t.priority === "URGENT" || t.priority === "HIGH")).sort((a, b) => rank(a) - rank(b)),
+    ],
   };
 }
 
