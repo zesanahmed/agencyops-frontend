@@ -27,6 +27,12 @@ export const useDeleteTask = (o: string, p: string) =>
 export const useCreateSubtask = (o: string, p: string, t: string) =>
   useAction({ fn: (title: string) => taskApi.createSubtask(o, p, t, title), invalidate: [[...tasksKey(o, p), t, "subtasks"]], success: "Subtask added" });
 
+export const useUpdateSubtask = (o: string, p: string, parent: string) =>
+  useAction({ fn: (v: { id: string; status: string }) => taskApi.update(o, p, v.id, { status: v.status }), invalidate: [[...tasksKey(o, p), parent, "subtasks"]] });
+
+export const useDeleteSubtask = (o: string, p: string, parent: string) =>
+  useAction({ fn: (id: string) => taskApi.remove(o, p, id), invalidate: [[...tasksKey(o, p), parent, "subtasks"]], success: "Subtask deleted" });
+
 export const useAddCollaborator = (o: string, p: string, t: string) =>
   useAction({ fn: (m: string) => taskApi.addCollaborator(o, p, t, m), invalidate: [[...tasksKey(o, p), t, "collaborators"]], success: "Collaborator added" });
 
