@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Pencil } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Select, Textarea } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
@@ -14,6 +14,8 @@ import { useOrg } from "@/features/organizations/org-context";
 import { useUrlState } from "@/hooks/use-url-state";
 import { timeAgo } from "@/lib/format";
 import { useComments, useCreateComment, useDeleteComment, useUpdateComment } from "./hooks";
+import { MentionInput } from "./mention-input";
+import { extractMentionIds, splitMentions } from "./mentions";
 import { commentSchema } from "./schemas";
 
 export function TaskComments({ projectId, taskId }: { projectId: string; taskId: string }) {
@@ -26,7 +28,6 @@ export function TaskComments({ projectId, taskId }: { projectId: string; taskId:
   const remove = useDeleteComment(o, projectId, taskId);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
-  const [mentions, setMentions] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const moderator = can("comment:moderate");
 
@@ -35,8 +36,10 @@ export function TaskComments({ projectId, taskId }: { projectId: string; taskId:
     const parsed = commentSchema.safeParse({ content: draft });
     if (!parsed.success) { setError(parsed.error.issues[0].message); return; }
     setError(null);
-    const ok = await create.mutateAsync({ content: parsed.data.content, mentionedMembershipIds: mentions.length ? mentions : undefined }).then(() => true, () => false);
-    if (ok) { setDraft(""); setMentions([]); }
+    // Who gets notified is derived from the text as sent, so deleting "@Ben" before submitting can't still notify Ben.
+    const mentionIds = extractMentionIds(parsed.data.content, members.list);
+    const ok = await create.mutateAsync({ content: parsed.data.content, mentionedMembershipIds: mentionIds.length ? mentionIds : undefined }).then(() => true, () => false);
+    if (ok) setDraft("");
   }
 
   return (
@@ -59,7 +62,7 @@ export function TaskComments({ projectId, taskId }: { projectId: string; taskId:
                         <Textarea aria-label="Edit comment" value={draft} onChange={(e) => setDraft(e.target.value)} />
                         <div className="flex gap-2"><Button size="sm" type="submit" loading={edit.isPending} disabled={!draft.trim()}>Save</Button><Button size="sm" variant="secondary" type="button" onClick={() => { setEditing(null); setDraft(""); }}>Cancel</Button></div>
                       </form>
-                    ) : <p className="whitespace-pre-wrap break-words text-sm">{c.content}</p>}
+                    ) : <p className="whitespace-pre-wrap break-words text-sm">{splitMentions(c.content, members.list.map((m) => m.name)).map((part, i) => part.mention ? <span key={i} className="rounded-sm bg-primary/10 px-0.5 font-medium text-primary">{part.text}</span> : part.text)}</p>}
                     {editing !== c.id && (mine || moderator) ? (
                       <div className="flex gap-3 text-xs text-muted-foreground">
                         {mine ? <button className="hover:text-foreground" onClick={() => { setEditing(c.id); setDraft(c.content); }}>Edit</button> : null}
@@ -76,14 +79,9 @@ export function TaskComments({ projectId, taskId }: { projectId: string; taskId:
       )}
       {can("comment:create") ? (
         <form onSubmit={submit} noValidate className="space-y-2">
-          <Textarea aria-label="Write a comment" placeholder="Write a comment…" value={draft} onChange={(e) => setDraft(e.target.value)} aria-invalid={!!error} disabled={editing !== null} />
+          <MentionInput label="Write a comment" placeholder="Write a comment… type @ to mention a teammate" value={draft} onChange={setDraft} members={members.list} invalid={!!error} disabled={editing !== null} />
           {error ? <p className="text-xs text-danger">{error}</p> : null}
           <div className="flex flex-wrap items-center gap-2">
-            <Select aria-label="Mention a teammate" value="" className="w-auto min-w-44" onChange={(e) => { const id = e.target.value; if (!id) return; const m = members.byId.get(id); if (m && !mentions.includes(id)) { setMentions([...mentions, id]); setDraft((d) => `${d}${d && !d.endsWith(" ") ? " " : ""}@${m.name} `); } }}>
-              <option value="">@ Mention…</option>
-              {members.list.filter((m) => !mentions.includes(m.id)).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </Select>
-            {mentions.length ? <span className="text-xs text-muted-foreground">{mentions.length} mentioned</span> : null}
             <Button type="submit" className="ml-auto" loading={create.isPending} disabled={editing !== null}>Comment</Button>
           </div>
         </form>
