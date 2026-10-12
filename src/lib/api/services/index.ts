@@ -118,7 +118,7 @@ export const sprintApi = {
 };
 
 // ---- Tasks ----
-export interface TaskInput { title: string; description?: string; priority?: string; status?: string; sprintId?: string | null; assigneeMembershipId?: string | null; dueDate?: string }
+export interface TaskInput { title: string; description?: string; priority?: string; status?: string; sprintId?: string | null; assigneeMembershipId?: string | null; startDate?: string; dueDate?: string }
 export const taskApi = {
   list: (o: string, p: string, q: ListParams = {}) => list(`${proj(o, p)}/tasks`, "tasks", q, mapTask),
   get: async (o: string, p: string, t: string) => mapTask(pick(await api.get<unknown>(task(o, p, t)), "task")),

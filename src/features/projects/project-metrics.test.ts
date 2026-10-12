@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pickFocusSprint, projectSchedule, scheduleLabel, sprintTaskProgress, summarizeTasks, timeElapsedPct } from "./project-metrics";
+import { dueSchedule, pickFocusSprint, projectSchedule, taskSchedule, scheduleLabel, sprintTaskProgress, summarizeTasks, timeElapsedPct } from "./project-metrics";
 import type { Sprint, Task } from "@/types/domain";
 
 const task = (o: Partial<Task>): Task => ({
@@ -77,5 +77,17 @@ describe("pickFocusSprint / sprintTaskProgress", () => {
     const tasks = [task({ sprintId: "s", status: "DONE" }), task({ sprintId: "s", status: "TODO" }), task({ sprintId: "other", status: "DONE" }), task({ sprintId: null })];
     expect(sprintTaskProgress(tasks, "s")).toEqual({ total: 2, done: 1, pct: 50 });
     expect(sprintTaskProgress(tasks, "none")).toEqual({ total: 0, done: 0, pct: 0 });
+  });
+});
+
+describe("taskSchedule / dueSchedule", () => {
+  const NOW = Date.UTC(2026, 5, 10, 22, 0);
+  it("flags an open task past its due day as overdue, but a done task never", () => {
+    expect(taskSchedule({ status: "IN_PROGRESS", dueDate: "2026-06-09T00:00:00.000Z" }, NOW)).toEqual({ state: "overdue", daysLeft: -1 });
+    expect(taskSchedule({ status: "DONE", dueDate: "2026-06-09T00:00:00.000Z" }, NOW).state).toBe("closed");
+    expect(taskSchedule({ status: "TODO", dueDate: null }, NOW).state).toBe("no-date");
+  });
+  it("treats the due day itself as due today (late evening UTC is still that day)", () => {
+    expect(dueSchedule("2026-06-10T00:00:00.000Z", false, NOW)).toEqual({ state: "due-soon", daysLeft: 0 });
   });
 });

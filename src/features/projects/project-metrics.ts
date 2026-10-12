@@ -41,19 +41,27 @@ export interface Schedule { state: ScheduleState; daysLeft: number | null }
 export const DUE_SOON_DAYS = 7;
 
 /**
- * Where a project stands against its due date. Dates are UTC calendar days, so "today" is compared
- * as a UTC day too. Completed and cancelled projects are never overdue.
+ * Where something stands against its due date. Dates are UTC calendar days, so "today" is compared as a UTC
+ * day too: an item due today is "due today" all day, never overdue. Closed items are never overdue.
  */
-export function projectSchedule(project: Pick<Project, "status" | "dueDate">, now: number = Date.now()): Schedule {
-  if (project.status === "COMPLETED" || project.status === "CANCELLED") return { state: "closed", daysLeft: null };
-  if (!project.dueDate) return { state: "no-date", daysLeft: null };
-  const due = new Date(project.dueDate).getTime();
+export function dueSchedule(dueDate: string | null, closed: boolean, now: number = Date.now()): Schedule {
+  if (closed) return { state: "closed", daysLeft: null };
+  if (!dueDate) return { state: "no-date", daysLeft: null };
+  const due = new Date(dueDate).getTime();
   if (Number.isNaN(due)) return { state: "no-date", daysLeft: null };
-  const dueDay = Math.floor(due / DAY);
-  const today = Math.floor(now / DAY);
-  const daysLeft = dueDay - today;
+  const daysLeft = Math.floor(due / DAY) - Math.floor(now / DAY);
   if (daysLeft < 0) return { state: "overdue", daysLeft };
   return { state: daysLeft <= DUE_SOON_DAYS ? "due-soon" : "on-track", daysLeft };
+}
+
+/** A project is closed once completed or cancelled. */
+export function projectSchedule(project: Pick<Project, "status" | "dueDate">, now: number = Date.now()): Schedule {
+  return dueSchedule(project.dueDate, project.status === "COMPLETED" || project.status === "CANCELLED", now);
+}
+
+/** A task is closed once done. */
+export function taskSchedule(task: Pick<Task, "status" | "dueDate">, now: number = Date.now()): Schedule {
+  return dueSchedule(task.dueDate, task.status === "DONE", now);
 }
 
 /** Short human text for a schedule, e.g. "Due in 3 days" / "5 days overdue". */

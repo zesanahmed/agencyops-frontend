@@ -40,7 +40,7 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
   const tabParam = get("tab", "overview");
   const tab: Tab = isTab(tabParam) ? tabParam : "overview";
   // The active tab lives in the URL (?tab=) so a view can be shared. Switching tabs drops the other tab's list filters.
-  const openTab = (next: string) => set({ tab: next === "overview" ? "" : next, status: "", priority: "", search: "", page: "" });
+  const openTab = (next: string) => set({ tab: next === "overview" ? "" : next, status: "", priority: "", search: "", sprint: "", assignee: "", sort: "", page: "" });
 
   if (isLoading) return <div className="space-y-4"><Skeleton className="h-10 w-72" /><Skeleton className="h-10 w-full" /><Skeleton className="h-64" /></div>;
   if (isError || !project) return <ErrorState error={error} onRetry={() => refetch()} title="Couldn't load this project" />;
