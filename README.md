@@ -97,6 +97,14 @@ copy of the real backend and a real PostgreSQL.
   `createdAt`, `name` or `dueDate`. There are no per-project counts, so the Overview tab derives progress from the first
   100 top-level tasks (and says so when there are more).
 
+- **Notifications:** the list takes `page`, `limit`, `unreadOnly`. `unreadOnly` is parsed with `z.coerce.boolean()` and
+  `Boolean("false")` is `true`, so the frontend only sends it when it is `true` (sending `unreadOnly=false` returns *only*
+  unread). The unread count comes from `meta.total` of an `unreadOnly=true&limit=1` request. Responses carry no link to the
+  task/comment (the backend does not expose the notification's `data`), so a notification cannot deep-link yet. Preference
+  rows are created lazily by `PUT`, so a type with no row is shown on/on. Today the backend creates `MENTION`
+  notifications without checking `inAppEnabled`, and email is not delivered, so the preference switches are stored only.
+  There is no activity/audit-log endpoint, so there is no activity feed.
+
 If the backend changes a shape, update `src/types/domain.ts`, `src/lib/api/mappers.ts` and the contract
 tests together. `npm run probe:api` prints the live response shapes to check for drift.
 

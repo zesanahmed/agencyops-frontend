@@ -102,6 +102,26 @@ describe("service layer ↔ backend contract", () => {
   });
 });
 
+describe("notifications: the unreadOnly flag", () => {
+  beforeEach(() => useAuthStore.setState({ accessToken: "t", status: "authenticated" }));
+  afterEach(() => vi.restoreAllMocks());
+  const lastUrl = (spy: ReturnType<typeof vi.spyOn>) => new URL(String(spy.mock.calls.at(-1)![0]), "http://x");
+
+  it("is NOT sent when false: the backend's z.coerce.boolean() would turn \"false\" into true and hide read notifications", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => ok({ notifications: [], pagination }));
+    await notificationApi.list("o1", { page: 1, limit: 20, unreadOnly: false });
+    expect(lastUrl(spy).searchParams.has("unreadOnly")).toBe(false);
+    await notificationApi.list("o1", { page: 1, limit: 20 });
+    expect(lastUrl(spy).searchParams.has("unreadOnly")).toBe(false);
+  });
+  it("is sent as unreadOnly=true when requested, together with paging", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => ok({ notifications: [], pagination }));
+    await notificationApi.list("o1", { page: 2, limit: 1, unreadOnly: true });
+    const q = lastUrl(spy).searchParams;
+    expect([q.get("unreadOnly"), q.get("page"), q.get("limit")]).toEqual(["true", "2", "1"]);
+  });
+});
+
 describe("invitationStatus (the list endpoint returns every invitation ever issued)", () => {
   const base = { acceptedAt: null, revokedAt: null, expiresAt: "2099-01-01T00:00:00Z" };
   it("derives pending / accepted / revoked / expired", () => {

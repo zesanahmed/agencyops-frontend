@@ -143,7 +143,12 @@ export const commentApi = {
 
 // ---- Notifications ----
 export const notificationApi = {
-  list: (o: string, q: ListParams & { unreadOnly?: boolean } = {}) => list<AppNotification>(`${org(o)}/notifications`, "notifications", q, mapNotification),
+  /**
+   * `unreadOnly` is only sent when true. The backend parses it with `z.coerce.boolean()`, and `Boolean("false")` is
+   * `true`, so sending `unreadOnly=false` would silently return ONLY unread notifications.
+   */
+  list: (o: string, { unreadOnly, ...rest }: ListParams & { unreadOnly?: boolean } = {}) =>
+    list<AppNotification>(`${org(o)}/notifications`, "notifications", { ...rest, ...(unreadOnly ? { unreadOnly: true } : {}) }, mapNotification),
   markRead: (o: string, id: string) => api.patch<unknown>(`${org(o)}/notifications/${id}/read`),
   markAllRead: (o: string) => api.post<unknown>(`${org(o)}/notifications/read-all`),
   preferences: async (o: string): Promise<NotificationPreference[]> => pickArray(await api.get<unknown>(`${org(o)}/notifications/preferences`), "preferences").map(mapPreference),

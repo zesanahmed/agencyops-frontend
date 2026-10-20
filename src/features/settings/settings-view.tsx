@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,9 +15,9 @@ import { RoleBadge } from "@/components/shared/role-badge";
 import { useAuth } from "@/features/auth/auth-provider";
 import { qk, useOrganization } from "@/features/organizations/hooks";
 import { organizationSchema, type OrganizationValues } from "@/features/organizations/schemas";
-import { mergePreferences } from "./preferences";
 import { useOrg } from "@/features/organizations/org-context";
-import { notificationApi, orgApi } from "@/lib/api/services";
+import { orgApi } from "@/lib/api/services";
+import { NotificationPreferences } from "@/features/notifications/notification-preferences";
 import { useAction } from "@/lib/use-action";
 
 export function SettingsView() {
@@ -77,40 +76,10 @@ function OrganizationSection() {
   );
 }
 
-const PREF_LABEL: Record<string, string> = { MENTION: "Mentions" };
-const prefLabel = (t: string) => PREF_LABEL[t] ?? t.toLowerCase().replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
-
 function PreferencesSection() {
-  const { organizationId: o } = useOrg();
-  const { data, isLoading, isError, error, refetch } = useQuery({ queryKey: qk.prefs(o), queryFn: () => notificationApi.preferences(o) });
-  const toggle = useAction({
-    fn: (v: { notificationType: string; channel: "emailEnabled" | "inAppEnabled"; value: boolean }) => notificationApi.updatePreference(o, v.notificationType, { [v.channel]: v.value }),
-    invalidate: [qk.prefs(o)],
-    success: "Preference saved",
-  });
-
   return (
     <Section title="Notification preferences" description="Choose how each kind of event should reach you in this organization. New types start enabled.">
-      {isLoading ? <Skeleton className="h-24" /> : isError ? <ErrorState error={error} onRetry={() => refetch()} title="Couldn't load preferences" />
-        : (
-          <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
-            {mergePreferences(data ?? []).map((p) => (
-              <li key={p.notificationType} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-                <span className="text-sm font-medium">{prefLabel(p.notificationType)}</span>
-                <div className="flex items-center gap-5">
-                  {([["inAppEnabled", "In-app"], ["emailEnabled", "Email"]] as const).map(([channel, label]) => (
-                    <label key={channel} htmlFor={`pref-${p.notificationType}-${channel}`} className="flex items-center gap-2 text-sm">
-                      <input id={`pref-${p.notificationType}-${channel}`} type="checkbox" role="switch" className="size-4 accent-(--primary)" checked={p[channel]} disabled={toggle.isPending}
-                        onChange={(e) => toggle.mutate({ notificationType: p.notificationType, channel, value: e.target.checked })} />
-                      {label}
-                    </label>
-                  ))}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      <p className="text-xs text-muted-foreground">Your choices are saved to your account. The backend doesn&apos;t apply them to in-app notifications yet, and email delivery isn&apos;t live, so for now they&apos;re stored for when it does.</p>
+      <NotificationPreferences />
     </Section>
   );
 }
