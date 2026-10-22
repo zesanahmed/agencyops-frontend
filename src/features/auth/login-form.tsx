@@ -15,6 +15,7 @@ import { safeNext } from "@/lib/auth/safe-next";
 import { cn } from "@/lib/utils";
 import { useAuth } from "./auth-provider";
 import { DEMO_ACCOUNTS, isDemoConfigured, type DemoAccount } from "./demo-accounts";
+import { OAuthButtons } from "./oauth-buttons";
 import { loginSchema, type LoginValues } from "./schemas";
 
 const ROLE_ICON = { OWNER: Crown, MANAGER: Shield, TEAM_MEMBER: User } as const;
@@ -58,7 +59,10 @@ export function LoginForm() {
           {errors.email ? <p id="email-error" className="text-xs text-danger">{errors.email.message}</p> : null}
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="password">Password</Label>
+          <div className="flex items-baseline justify-between gap-2">
+            <Label htmlFor="password">Password</Label>
+            <Link href="/forgot-password" className="text-xs font-medium text-primary hover:underline">Forgot password?</Link>
+          </div>
           <Input id="password" type="password" autoComplete="current-password" aria-invalid={!!errors.password} aria-describedby={errors.password ? "password-error" : undefined} {...register("password")} />
           {errors.password ? <p id="password-error" className="text-xs text-danger">{errors.password.message}</p> : null}
         </div>
@@ -68,6 +72,8 @@ export function LoginForm() {
           New to AgencyOps? <Link href="/register" className="font-medium text-primary hover:underline">Create an account</Link>
         </p>
       </form>
+
+      <OAuthButtons verb="Sign in" />
 
       <section aria-labelledby="demo-heading" className="space-y-3">
         <div className="flex items-center gap-3">

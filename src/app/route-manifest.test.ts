@@ -23,6 +23,11 @@ const PAGES: { file: string; exportName: string; title: string }[] = [
   { file: `${ORG}/settings/page.tsx`, exportName: "Page", title: "Settings" },
   { file: `${ORG}/my-work/page.tsx`, exportName: "Page", title: "My work" },
   { file: `${ORG}/activity/page.tsx`, exportName: "ActivityPage", title: "Activity" },
+  { file: "(auth)/forgot-password/page.tsx", exportName: "ForgotPasswordPage", title: "Forgot password" },
+  { file: "(auth)/reset-password/page.tsx", exportName: "ResetPasswordPage", title: "Choose a new password" },
+  { file: "verify-email/page.tsx", exportName: "VerifyEmailPage", title: "Verify e-mail" },
+  { file: "oauth/callback/page.tsx", exportName: "OAuthCallbackPage", title: "Signing in" },
+  { file: "invitations/accept/page.tsx", exportName: "InvitationLinkPage", title: "Accept invitation" },
 ];
 const LOADING: { file: string; ariaLabel: string }[] = [
   { file: `${ORG}/loading.tsx`, ariaLabel: "Loading" },

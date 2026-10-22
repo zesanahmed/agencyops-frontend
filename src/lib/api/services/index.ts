@@ -1,7 +1,7 @@
 import { api, apiGetRaw } from "../client";
 import { normalizePage, type Paginated } from "../pagination";
 import {
-  mapActivity, mapComment, mapInvitation, mapInvitationPreview, mapMembership, mapNotification, mapOrganization, mapOrgMembership,
+  mapActivity, mapSession, mapComment, mapInvitation, mapInvitationPreview, mapMembership, mapNotification, mapOrganization, mapOrgMembership,
   mapPreference, mapProject, mapProjectMember, mapProjectTeam, mapSprint, mapTask, mapTaskCollaborator,
   mapTeam, mapTeamMember, mapUser, pick, pickArray,
 } from "../mappers";
@@ -48,6 +48,23 @@ export const authApi = {
   me: async () => mapUser(pick(await api.get<unknown>("/auth/me"), "user")),
   logout: () => api.post<void>("/auth/logout", undefined, { anonymous: true }),
   logoutAll: () => api.post<void>("/auth/logout-all"),
+  // ---- account & security ----
+  /** One-time token from the e-mailed link. Public: works signed in or out. */
+  verifyEmail: (token: string) => api.post<void>("/auth/verify-email", { token }, { anonymous: true }),
+  /** `sent: false` means the address was already verified. */
+  resendVerification: async (): Promise<boolean> => pick(await api.post<unknown>("/auth/resend-verification"), "sent") === true,
+  /** Always succeeds with the same message, whether or not the address has an account. */
+  forgotPassword: (email: string) => api.post<void>("/auth/forgot-password", { email }, { anonymous: true }),
+  resetPassword: (token: string, password: string) => api.post<void>("/auth/reset-password", { token, password }, { anonymous: true }),
+  /** Revokes EVERY session, this one included: the caller must sign in again. */
+  changePassword: (currentPassword: string, newPassword: string) => api.post<void>("/auth/change-password", { currentPassword, newPassword }),
+  sessions: async () => {
+    const data = pick(await api.get<unknown>("/auth/sessions"), "sessions");
+    return Array.isArray(data) ? data.map(mapSession) : [];
+  },
+  revokeSession: (id: string) => api.delete(`/auth/sessions/${id}`),
+  /** `password` is required for accounts that have one; OAuth-only accounts send none. 409 while the user still owns an organization. */
+  deleteAccount: (password?: string) => api.delete("/auth/account", password ? { password } : undefined),
 };
 
 // ---- Organizations ----

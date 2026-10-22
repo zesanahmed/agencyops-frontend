@@ -80,4 +80,10 @@ describe("LoginForm", () => {
     await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
     expect(await screen.findByRole("alert")).toBeInTheDocument();
   });
+
+  it("links to the password reset flow", async () => {
+    const LoginForm = await loadForm();
+    render(<LoginForm />);
+    expect(screen.getByRole("link", { name: "Forgot password?" })).toHaveAttribute("href", "/forgot-password");
+  });
 });

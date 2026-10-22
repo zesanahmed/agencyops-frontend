@@ -28,6 +28,20 @@ export interface User {
   name: string;
   email: string;
   avatarUrl: string | null;
+  /** ISO timestamp once the e-mail address is verified; null until then. Absent on partial payloads. */
+  emailVerifiedAt?: string | null;
+}
+
+/** One active sign-in (a refresh-token session) of the current user: GET /auth/sessions. */
+export interface UserSession {
+  id: string;
+  userAgent: string | null;
+  ipAddress: string | null;
+  createdAt: string;
+  lastUsedAt: string | null;
+  expiresAt: string;
+  /** True for the session making this request. */
+  current: boolean;
 }
 
 /** Note: no `role` — the backend does not include the caller's role on organizations. */

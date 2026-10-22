@@ -208,3 +208,64 @@ describe("final backend contract additions", () => {
     expect(bodyOf(1)).toBeUndefined();
   });
 });
+
+/** Account & security endpoints (agencyops-api auth.routes.ts / account.controller.ts at 08f0b20). */
+describe("account & security contract", () => {
+  beforeEach(() => useAuthStore.setState({ accessToken: "t", status: "authenticated" }));
+  afterEach(() => vi.restoreAllMocks());
+  const call = (spy: ReturnType<typeof vi.spyOn>, i = 0) => ({ url: String(spy.mock.calls[i][0]), init: spy.mock.calls[i][1] as RequestInit });
+  const headersOf = (init: RequestInit) => new Headers(init.headers);
+
+  it("me exposes emailVerifiedAt (null until verified)", async () => {
+    const user = { id: "u1", name: "Ada", email: "ada@x.io", avatarUrl: null, status: "ACTIVE" };
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(ok({ user: { ...user, emailVerifiedAt: null } })).mockResolvedValueOnce(ok({ user: { ...user, emailVerifiedAt: "2026-10-01T00:00:00.000Z" } }));
+    expect((await authApi.me()).emailVerifiedAt).toBeNull();
+    expect((await authApi.me()).emailVerifiedAt).toBe("2026-10-01T00:00:00.000Z");
+  });
+
+  it("public flows (verify, forgot, reset) send no Authorization header", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => ok(null));
+    await authApi.verifyEmail("tok-1234567890abcdef");
+    await authApi.forgotPassword("a@b.co");
+    await authApi.resetPassword("tok-1234567890abcdef", "new-password-1");
+    const urls = [0, 1, 2].map((i) => call(spy, i).url);
+    expect(urls[0]).toMatch(/\/auth\/verify-email$/); expect(urls[1]).toMatch(/\/auth\/forgot-password$/); expect(urls[2]).toMatch(/\/auth\/reset-password$/);
+    for (let i = 0; i < 3; i++) expect(headersOf(call(spy, i).init).get("Authorization")).toBeNull();
+    expect(JSON.parse(call(spy, 2).init.body as string)).toEqual({ token: "tok-1234567890abcdef", password: "new-password-1" });
+  });
+
+  it("resendVerification returns whether an e-mail was actually sent", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(ok({ sent: true })).mockResolvedValueOnce(ok({ sent: false }));
+    expect(await authApi.resendVerification()).toBe(true);
+    expect(await authApi.resendVerification()).toBe(false);
+  });
+
+  it("changePassword posts { currentPassword, newPassword } with the access token", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(ok(null));
+    await authApi.changePassword("old-password", "new-password-1");
+    const { url, init } = call(spy);
+    expect(url).toMatch(/\/auth\/change-password$/);
+    expect(headersOf(init).get("Authorization")).toBe("Bearer t");
+    expect(JSON.parse(init.body as string)).toEqual({ currentPassword: "old-password", newPassword: "new-password-1" });
+  });
+
+  it("sessions: maps the list and flags the current one", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(ok({ sessions: [
+      { id: "s1", userAgent: "Mozilla/5.0 Chrome/120", ipAddress: "1.2.3.4", createdAt: "2026-10-01T00:00:00Z", lastUsedAt: null, expiresAt: "2026-11-01T00:00:00Z", current: true },
+      { id: "s2", userAgent: null, ipAddress: null, createdAt: "2026-09-01T00:00:00Z", lastUsedAt: "2026-09-02T00:00:00Z", expiresAt: "2026-10-30T00:00:00Z", current: false },
+    ] }));
+    const [a, b] = await authApi.sessions();
+    expect([a.current, a.lastUsedAt, b.current, b.userAgent]).toEqual([true, null, false, null]);
+  });
+
+  it("revokeSession and deleteAccount use DELETE; the password travels in the body only when given", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => ok(null));
+    await authApi.revokeSession("s2");
+    await authApi.deleteAccount("my-password");
+    await authApi.deleteAccount();
+    expect([call(spy, 0).init.method, call(spy, 0).url.endsWith("/auth/sessions/s2")]).toEqual(["DELETE", true]);
+    expect(call(spy, 1).url).toMatch(/\/auth\/account$/);
+    expect(JSON.parse(call(spy, 1).init.body as string)).toEqual({ password: "my-password" });
+    expect(call(spy, 2).init.body).toBeUndefined();
+  });
+});

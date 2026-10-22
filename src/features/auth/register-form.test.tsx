@@ -39,7 +39,7 @@ describe("RegisterForm", () => {
     expect(signUp).not.toHaveBeenCalled();
   });
 
-  it("applies the backend's password policy: 8–128 characters, no letter/number composition rule", async () => {
+  it("applies the backend's password policy: 8–72 characters, no letter/number composition rule", async () => {
     signUp.mockResolvedValue({});
     render(<RegisterForm />);
     await fill({ password: "abcdefgh", confirmPassword: "abcdefgh" }); // all letters: valid per backend
@@ -63,11 +63,11 @@ describe("RegisterForm", () => {
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/organizations"));
   });
 
-  it("rejects passwords over 128 characters", async () => {
+  it("rejects passwords over 72 characters", async () => {
     render(<RegisterForm />);
-    const long = "a".repeat(129);
+    const long = "a".repeat(73);
     await fill({ password: long, confirmPassword: long });
-    expect(await screen.findByText("Password must be at most 128 characters")).toBeInTheDocument();
+    expect(await screen.findByText("Password must be at most 72 characters")).toBeInTheDocument();
     expect(signUp).not.toHaveBeenCalled();
   });
 

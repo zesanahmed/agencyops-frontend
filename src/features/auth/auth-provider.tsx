@@ -19,6 +19,13 @@ interface AuthContextValue {
   logoutAll: () => Promise<void>;
   /** Re-run session restore after a connectivity failure. */
   retry: () => Promise<void>;
+  /**
+   * Finish a sign-in that happened in the browser (OAuth): the backend already set the refresh cookie, so trade it for an
+   * access token and load the user. Resolves false when no session came out of it.
+   */
+  completeOAuth: () => Promise<boolean>;
+  /** Re-read the current user (e.g. after verifying the e-mail address). */
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -91,6 +98,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     },
     retry: () => restore(),
+    completeOAuth: async () => {
+      const outcome = await refreshSession();
+      if (outcome.kind !== "ok") return false;
+      try {
+        const me = await authApi.me();
+        useAuthStore.setState({ user: me, status: "authenticated", signedOut: false });
+        setSessionFlag();
+        return true;
+      } catch { return false; }
+    },
+    refreshUser: async () => {
+      if (useAuthStore.getState().status !== "authenticated") return;
+      try { useAuthStore.setState({ user: await authApi.me() }); } catch { /* keep the cached user */ }
+    },
     logoutAll: async () => {
       try { await authApi.logoutAll(); } finally {
         useAuthStore.getState().clear({ explicit: true });

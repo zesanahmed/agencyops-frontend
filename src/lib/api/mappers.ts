@@ -1,6 +1,6 @@
 import {
   ROLES, PROJECT_STATUSES, SPRINT_STATUSES, TASK_PRIORITIES, TASK_STATUSES,
-  type Activity, type AppNotification, type NotificationData, type OrgMembership, type PersonRef, type Comment, type Invitation, type InvitationPreview, type Membership,
+  type Activity, type AppNotification, type UserSession, type NotificationData, type OrgMembership, type PersonRef, type Comment, type Invitation, type InvitationPreview, type Membership,
   type NotificationPreference, type Organization, type Project, type ProjectMember, type ProjectTeam,
   type Role, type Sprint, type Task, type TaskCollaborator, type Team, type TeamMember, type User,
 } from "@/types/domain";
@@ -29,7 +29,12 @@ export const asRole = (v: unknown): Role | undefined => (ROLES.includes(v as Rol
 
 export function mapUser(raw: unknown): User {
   const r = rec(raw);
-  return { id: str(r.id), name: str(r.name), email: str(r.email), avatarUrl: nstr(r.avatarUrl) };
+  return { id: str(r.id), name: str(r.name), email: str(r.email), avatarUrl: nstr(r.avatarUrl), ...("emailVerifiedAt" in r ? { emailVerifiedAt: nstr(r.emailVerifiedAt) } : {}) };
+}
+
+export function mapSession(raw: unknown): UserSession {
+  const r = rec(raw);
+  return { id: str(r.id), userAgent: nstr(r.userAgent), ipAddress: nstr(r.ipAddress), createdAt: str(r.createdAt), lastUsedAt: nstr(r.lastUsedAt), expiresAt: str(r.expiresAt), current: r.current === true };
 }
 
 export function mapOrganization(raw: unknown): Organization {

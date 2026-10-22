@@ -111,6 +111,18 @@ copy of the real backend and a real PostgreSQL.
 - **Access:** `GET /organizations/:id` returns the caller's `membership` with the server's `permissions` list; the UI gates on
   that list and only falls back to the mirrored matrix in `src/lib/rbac.ts` while it loads (no more member-directory
   lookup to find one's own role).
+- **Account & security (final backend):** forgot/reset password (`POST /auth/forgot-password` answers identically for unknown
+  addresses, so the UI never confirms an account exists; reset tokens are single-use), e-mail verification
+  (`/verify-email?token=`, fired exactly once per page load), change password (revokes **every** session, so the UI signs out
+  afterwards), session list/revoke, delete account (password required only for accounts that have one; **409** while the user
+  still owns an organization). Nothing in the backend is gated on a verified address, so the unverified banner only nudges.
+  The password policy is **8–72 characters and ≤72 UTF-8 bytes** (bcrypt); an earlier frontend rule of 128 was wrong.
+- **E-mailed links** are `/verify-email`, `/reset-password`, `/invitations/accept` (bridged to `/invite/[token]`) and, in a
+  later phase, `/portal/accept-invite`.
+- **OAuth (Google/GitHub):** the buttons are hidden unless `NEXT_PUBLIC_OAUTH_PROVIDERS` is set. The start URL goes through the
+  `/api/v1` proxy, so for the round-trip to stay first-party the backend's `API_PUBLIC_URL` must be this site's origin and the
+  provider's redirect URI `<origin>/api/v1/auth/oauth/<provider>/callback`. The callback page (`/oauth/callback`) trades the
+  refresh cookie for an access token exactly once. Not exercised against real provider credentials in this repo.
 - **Demo login:** the three buttons use the accounts created by the backend's `npm run seed` (`*@demo.agencyops.test`,
   password `DemoPass123!`); `NEXT_PUBLIC_DEMO_*` env vars override them.
 

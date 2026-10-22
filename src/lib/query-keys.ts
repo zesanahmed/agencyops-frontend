@@ -1,5 +1,7 @@
 /** Central TanStack Query keys. All org-scoped keys start with ["organizations", id] so one prefix invalidates a whole tenant. */
 export const qk = {
+  /** The signed-in user's own refresh-token sessions (not org-scoped). */
+  sessions: ["auth", "sessions"] as const,
   orgs: ["organizations"] as const,
   org: (id: string) => ["organizations", id] as const,
   memberDirectory: (id: string) => ["organizations", id, "member-directory"] as const,

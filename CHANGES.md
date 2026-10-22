@@ -1,22 +1,28 @@
-# CHANGES — Phase I (final contract sync, Activity feed, demo login)
+# CHANGES — Phase J (account & security)
 
-Compared with your GitHub `main` (`12b04d7`, end of Phase H). Backend verified at `agencyops-api` `08f0b20`.
+Builds on Phase I. Backend verified at `agencyops-api` `08f0b20`.
 
-## Summary
-- **Demo login works out of the box.** The three buttons now default to the seeded accounts
-  (`owner@/manager@/member@demo.agencyops.test`, `DemoPass123!`); env vars only override them.
-- **Activity feed** at `/organizations/[id]/activity` (new sidebar item): newest-first, grouped by day, filter by type and
-  project, paginated, all in the URL. The server's `summary` is shown as-is and links to the task/project (never to deleted things).
-- **Server-provided permissions.** `GET /organizations/:id` now gives the caller's membership and permission list; the UI
-  gates on it (RBAC mirror updated for the new `client:*`, `billing:*`, `invoice:*`, `activity:*` permissions and the
-  Manager/Team member differences). One request instead of the whole member directory just to learn one's own role.
-- **Notifications deep-link** to the task / sprint / project via `data`, are marked read on click, and know all 9 types.
-- **Sprint completion** asks where unfinished tasks should go (backlog, another open sprint, or stay) and reports how many moved.
-- **Dates can be cleared** on projects and tasks (the backend now accepts `null`).
-- **Types/mappers** extended for the final contract (project `taskCounts/memberCount/activeSprint`, task `assignee` and counts,
-  comment `author/mentions`, notification `data`, activity). All new fields are optional so nothing existing changed shape.
-- **Contract discrepancy found:** `FRONTEND_CONTRACT.md` §3.3 says sprint-complete accepts `moveOpenTasksTo: null`; the backend
-  code accepts only `"BACKLOG"` or a sprint id. The frontend follows the code. Worth telling Claude-1 to fix the doc.
+## New pages
+- `/forgot-password` and `/reset-password?token=` (single-use link; an invalid/expired token turns into "request a new link").
+- `/verify-email?token=` (the token is spent exactly once, even under React strict mode).
+- `/oauth/callback` (Google/GitHub round-trip landing page, with a message for each backend error code).
+- `/invitations/accept?token=`: the backend e-mails this path for organization invitations, but the app's page is
+  `/invite/[token]`; this redirects, so invitation e-mails no longer 404.
+
+## Changed
+- **Profile** is now a real account page: verified badge + resend, change password, active sessions (this device labelled,
+  sign out the others), sign out / sign out everywhere, delete account (type DELETE; password optional for OAuth-only users;
+  the backend's 409 "you still own an organization" is shown as-is).
+- **Login** gets "Forgot password?" and, when enabled, Google/GitHub buttons; **Register** gets the same buttons.
+- **Unverified-e-mail banner** under the top bar (soft nudge: the backend blocks nothing on it).
+- **Bug fix:** the password rule was 8–128; the backend allows 8–72 characters and ≤72 UTF-8 bytes. A 100-character password
+  used to pass the form and fail on the server. Now validated identically on every password form.
+- `api.delete` can carry a body (account deletion); `User` gains `emailVerifiedAt`; `.env.example` documents
+  `NEXT_PUBLIC_OAUTH_PROVIDERS`.
 
 ## Tests
-304 -> 333 tests (new: activity view + helpers, final-contract mappers, sprint completion, notification links, date clearing, RBAC matrix).
+333 -> 385 (account flows, schemas incl. the UTF-8 byte rule, account contract, session labels, OAuth buttons).
+
+## Notes
+- OAuth only works once the backend has provider credentials and `API_PUBLIC_URL` equals this site's origin (see README).
+- Reset/verify e-mails are sent by the backend's Resend integration; demo users never receive e-mail.

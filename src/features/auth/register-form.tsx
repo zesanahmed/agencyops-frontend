@@ -13,6 +13,7 @@ import { toErrorMessage } from "@/lib/api/errors";
 import { extractFieldErrors } from "@/lib/api/field-errors";
 import { safeNext } from "@/lib/auth/safe-next";
 import { useAuth } from "./auth-provider";
+import { OAuthButtons } from "./oauth-buttons";
 import { registerSchema, type RegisterValues } from "./schemas";
 
 const FIELDS = [
@@ -30,6 +31,7 @@ export function RegisterForm() {
   const { register, handleSubmit, setError, formState: { errors, isSubmitting } } = useForm<RegisterValues>({ resolver: zodResolver(registerSchema) });
 
   return (
+    <div className="space-y-6">
     <form
       noValidate
       className="space-y-4"
@@ -69,5 +71,7 @@ export function RegisterForm() {
         Already have an account? <Link href={next === "/organizations" ? "/login" : `/login?next=${encodeURIComponent(next)}`} className="font-medium text-primary hover:underline">Sign in</Link>
       </p>
     </form>
+    <OAuthButtons verb="Sign up" />
+    </div>
   );
 }

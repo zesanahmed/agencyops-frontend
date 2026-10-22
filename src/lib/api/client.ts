@@ -140,7 +140,7 @@ export const api = {
     apiRequest<T>(path, { method: "POST", body, ...opts }),
   put: <T>(path: string, body?: unknown) => apiRequest<T>(path, { method: "PUT", body }),
   patch: <T>(path: string, body?: unknown) => apiRequest<T>(path, { method: "PATCH", body }),
-  delete: <T = void>(path: string) => apiRequest<T>(path, { method: "DELETE" }),
+  delete: <T = void>(path: string, body?: unknown) => apiRequest<T>(path, { method: "DELETE", body }),
 };
 
 export { ApiError };

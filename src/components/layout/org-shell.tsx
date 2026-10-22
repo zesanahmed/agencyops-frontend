@@ -8,6 +8,7 @@ import { Logo } from "@/components/shared/logo";
 import { Breadcrumbs } from "./breadcrumbs";
 import { NotificationBell } from "./notification-bell";
 import { OrgGuard } from "./org-guard";
+import { VerifyEmailBanner } from "@/features/auth/verify-email-banner";
 import { OrgProvider } from "@/features/organizations/org-context";
 import { SidebarNav } from "./sidebar";
 import { UserMenu } from "./user-menu";
@@ -28,6 +29,7 @@ export function OrgShell({ organizationId, children }: { organizationId: string;
             <div className="hidden min-w-0 flex-1 lg:block"><Breadcrumbs organizationId={organizationId} /></div>
             <div className="ml-auto flex items-center gap-1"><NotificationBell organizationId={organizationId} /><UserMenu /></div>
           </header>
+          <VerifyEmailBanner />
           <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6"><OrgGuard organizationId={organizationId}>{children}</OrgGuard></main>
         </div>
       </div>
