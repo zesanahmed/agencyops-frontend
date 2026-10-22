@@ -17,7 +17,7 @@ import { formatDateTime, timeAgo } from "@/lib/format";
 import { useAction } from "@/lib/use-action";
 import { cn } from "@/lib/utils";
 import { useUnreadCount } from "./hooks";
-import { groupByDay, notificationKind } from "./notification-meta";
+import { groupByDay, notificationHref, notificationKind } from "./notification-meta";
 
 export function NotificationsView() {
   const { organizationId: o } = useOrg();
@@ -52,7 +52,7 @@ export function NotificationsView() {
       </div>
       {isLoading ? <div className="space-y-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-16" />)}</div>
         : isError ? <ErrorState error={error} onRetry={() => refetch()} title="Couldn't load notifications" />
-        : !data?.items.length ? <EmptyState icon={unreadOnly ? BellOff : Bell} title={unreadOnly ? "Nothing unread" : "No notifications yet"} description={unreadOnly ? "You're all caught up." : "When someone mentions you in a comment, it will show up here."}
+        : !data?.items.length ? <EmptyState icon={unreadOnly ? BellOff : Bell} title={unreadOnly ? "Nothing unread" : "No notifications yet"} description={unreadOnly ? "You're all caught up." : "Mentions, task assignments, status changes and sprint starts will show up here."}
             action={unreadOnly ? <Button variant="secondary" onClick={() => set({ filter: "" })}>Show all notifications</Button> : undefined} />
         : (<>
           <div className="space-y-5">
@@ -63,11 +63,14 @@ export function NotificationsView() {
                   {g.items.map((n) => {
                     const isUnread = !n.readAt;
                     const kind = notificationKind(n.type);
+                    const href = notificationHref(o, n);
+                    const title = <span className={isUnread ? "font-medium" : undefined}>{n.title}</span>;
                     return (
                       <li key={n.id} className={cn("flex items-start gap-3 px-4 py-3", isUnread && "bg-primary-soft/40")}>
                         <span className={cn("mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full", isUnread ? "bg-primary-soft text-primary" : "bg-surface-muted text-muted-foreground")}><kind.icon className="size-3.5" aria-hidden /></span>
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm"><span className="sr-only">{isUnread ? "Unread: " : ""}</span><span className={isUnread ? "font-medium" : undefined}>{n.title}</span></p>
+                          <p className="text-sm"><span className="sr-only">{isUnread ? "Unread: " : ""}</span>
+                            {href ? <Link href={href} className="underline-offset-2 hover:underline" onClick={() => { if (isUnread) markOne.mutate(n.id); }}>{title}</Link> : title}</p>
                           {n.message ? <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-muted-foreground">{n.message}</p> : null}
                           <p className="mt-1 text-xs text-muted-foreground">{kind.label} · <time dateTime={n.createdAt} title={formatDateTime(n.createdAt)}>{timeAgo(n.createdAt)}</time></p>
                         </div>

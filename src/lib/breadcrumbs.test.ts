@@ -36,4 +36,7 @@ describe("buildCrumbs", () => {
   it("falls back to generic labels while names load", () => {
     expect(buildCrumbs("/organizations/o1/projects/p1", {})[2].label).toBe("Project");
   });
+  it("labels the activity feed", () => {
+    expect(buildCrumbs("/organizations/o1/activity", { org: "Acme" })).toEqual([{ label: "Acme", href: "/organizations/o1" }, { label: "Activity" }]);
+  });
 });

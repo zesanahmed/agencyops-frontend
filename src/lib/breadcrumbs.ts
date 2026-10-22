@@ -2,7 +2,7 @@ export interface Crumb { label: string; href?: string }
 
 const SEGMENT_LABEL: Record<string, string> = {
   "my-work": "My work", projects: "Projects", teams: "Teams", members: "Members",
-  notifications: "Notifications", settings: "Settings", tasks: "Tasks",
+  notifications: "Notifications", settings: "Settings", tasks: "Tasks", activity: "Activity",
 };
 
 /**

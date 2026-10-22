@@ -1,6 +1,6 @@
 import {
   ROLES, PROJECT_STATUSES, SPRINT_STATUSES, TASK_PRIORITIES, TASK_STATUSES,
-  type AppNotification, type Comment, type Invitation, type InvitationPreview, type Membership,
+  type Activity, type AppNotification, type NotificationData, type OrgMembership, type PersonRef, type Comment, type Invitation, type InvitationPreview, type Membership,
   type NotificationPreference, type Organization, type Project, type ProjectMember, type ProjectTeam,
   type Role, type Sprint, type Task, type TaskCollaborator, type Team, type TeamMember, type User,
 } from "@/types/domain";
@@ -70,12 +70,33 @@ export function mapTeamMember(raw: unknown): TeamMember {
   return { id: str(r.id), teamId: str(r.teamId), membershipId: str(r.membershipId) };
 }
 
+const num = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
+
+/** `{ membershipId, user: { id, name, email, avatarUrl } }` -> flat person. Null when the backend sent none (e.g. a removed member). */
+export function mapPersonRef(raw: unknown): PersonRef | null {
+  const r = rec(raw);
+  const u = rec(r.user);
+  const membershipId = str(r.membershipId);
+  if (!membershipId) return null;
+  return { membershipId, name: str(u.name) || str(u.email) || "Unknown member", email: str(u.email), avatarUrl: nstr(u.avatarUrl) };
+}
+
+function mapTaskCounts(raw: unknown): Record<(typeof TASK_STATUSES)[number], number> {
+  const r = rec(raw);
+  return Object.fromEntries(TASK_STATUSES.map((s) => [s, num(r[s]) ?? 0])) as Record<(typeof TASK_STATUSES)[number], number>;
+}
+
 export function mapProject(raw: unknown): Project {
   const r = rec(raw);
+  const sprint = rec(r.activeSprint);
   return {
     id: str(r.id), name: str(r.name, "Untitled project"), slug: str(r.slug), description: nstr(r.description),
     status: oneOf(PROJECT_STATUSES, r.status, "ACTIVE"), startDate: nstr(r.startDate), dueDate: nstr(r.dueDate),
     createdAt: str(r.createdAt), updatedAt: str(r.updatedAt),
+    // Aggregates exist only on list/detail responses; keep them absent (not zero) elsewhere.
+    ...("taskCounts" in r ? { taskCounts: mapTaskCounts(r.taskCounts) } : {}),
+    ...(num(r.memberCount) !== undefined ? { memberCount: num(r.memberCount) } : {}),
+    ...("activeSprint" in r ? { activeSprint: str(sprint.id) ? { id: str(sprint.id), name: str(sprint.name, "Sprint") } : null } : {}),
   };
 }
 export function mapProjectTeam(raw: unknown): ProjectTeam {
@@ -102,6 +123,10 @@ export function mapTask(raw: unknown): Task {
     assigneeMembershipId: nstr(r.assigneeMembershipId), title: str(r.title, "Untitled task"), description: nstr(r.description),
     status: oneOf(TASK_STATUSES, r.status, "TODO"), priority: oneOf(TASK_PRIORITIES, r.priority, "MEDIUM"),
     startDate: nstr(r.startDate), dueDate: nstr(r.dueDate), createdAt: str(r.createdAt),
+    ...("assignee" in r ? { assignee: mapPersonRef(r.assignee) } : {}),
+    ...(num(r.subtaskCount) !== undefined ? { subtaskCount: num(r.subtaskCount) } : {}),
+    ...(num(r.doneSubtaskCount) !== undefined ? { doneSubtaskCount: num(r.doneSubtaskCount) } : {}),
+    ...(num(r.commentCount) !== undefined ? { commentCount: num(r.commentCount) } : {}),
   };
 }
 export function mapTaskCollaborator(raw: unknown): TaskCollaborator {
@@ -111,12 +136,44 @@ export function mapTaskCollaborator(raw: unknown): TaskCollaborator {
 
 export function mapComment(raw: unknown): Comment {
   const r = rec(raw);
-  return { id: str(r.id), taskId: str(r.taskId), authorMembershipId: str(r.authorMembershipId), content: str(r.content), createdAt: str(r.createdAt), updatedAt: str(r.updatedAt) };
+  return {
+    id: str(r.id), taskId: str(r.taskId), authorMembershipId: str(r.authorMembershipId), content: str(r.content), createdAt: str(r.createdAt), updatedAt: str(r.updatedAt),
+    ...("author" in r ? { author: mapPersonRef(r.author) } : {}),
+    ...(Array.isArray(r.mentions) ? { mentions: r.mentions.map(mapPersonRef).filter((p): p is PersonRef => p !== null) } : {}),
+  };
+}
+
+const DATA_KEYS = ["projectId", "taskId", "commentId", "sprintId", "invoiceId", "messageId", "requestId", "fileId", "from", "to"] as const;
+function mapNotificationData(raw: unknown): NotificationData | null {
+  const r = rec(raw);
+  const out: NotificationData = {};
+  for (const k of DATA_KEYS) if (typeof r[k] === "string" && r[k]) out[k] = r[k] as string;
+  return Object.keys(out).length ? out : null;
 }
 
 export function mapNotification(raw: unknown): AppNotification {
   const r = rec(raw);
-  return { id: str(r.id), type: str(r.type, "GENERAL"), title: str(r.title, "Notification"), message: str(r.message), readAt: nstr(r.readAt), createdAt: str(r.createdAt) };
+  return { id: str(r.id), type: str(r.type, "GENERAL"), title: str(r.title, "Notification"), message: str(r.message), data: mapNotificationData(r.data), readAt: nstr(r.readAt), createdAt: str(r.createdAt) };
+}
+
+export function mapActivity(raw: unknown): Activity {
+  const r = rec(raw);
+  const a = rec(r.actor);
+  const meta = rec(r.metadata);
+  const metadata: Activity["metadata"] = {};
+  for (const [k, v] of Object.entries(meta)) if (v === null || typeof v === "string" || typeof v === "number" || typeof v === "boolean") metadata[k] = v;
+  return {
+    id: str(r.id), action: str(r.action), entityType: str(r.entityType), entityId: str(r.entityId),
+    projectId: nstr(r.projectId), taskId: nstr(r.taskId),
+    actor: str(a.membershipId) ? { membershipId: str(a.membershipId), name: str(a.name, "Someone") } : null,
+    summary: str(r.summary), metadata, createdAt: str(r.createdAt),
+  };
+}
+
+export function mapOrgMembership(raw: unknown): OrgMembership | null {
+  const r = rec(raw);
+  if (!str(r.id)) return null;
+  return { id: str(r.id), role: oneOf(ROLES, r.role, "TEAM_MEMBER"), permissions: Array.isArray(r.permissions) ? r.permissions.filter((p): p is string => typeof p === "string") : [] };
 }
 
 export function mapPreference(raw: unknown): NotificationPreference {

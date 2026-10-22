@@ -1,12 +1,12 @@
 import { api, apiGetRaw } from "../client";
 import { normalizePage, type Paginated } from "../pagination";
 import {
-  mapComment, mapInvitation, mapInvitationPreview, mapMembership, mapNotification, mapOrganization,
+  mapActivity, mapComment, mapInvitation, mapInvitationPreview, mapMembership, mapNotification, mapOrganization, mapOrgMembership,
   mapPreference, mapProject, mapProjectMember, mapProjectTeam, mapSprint, mapTask, mapTaskCollaborator,
   mapTeam, mapTeamMember, mapUser, pick, pickArray,
 } from "../mappers";
 import type {
-  AppNotification, Comment, Invitation, InvitationPreview, Membership, NotificationPreference, Organization,
+  Activity, AppNotification, OrgMembership, Comment, Invitation, InvitationPreview, Membership, NotificationPreference, Organization,
   Project, ProjectMember, ProjectTeam, Role, AssignableRole, Sprint, Task, TaskCollaborator, Team, TeamMember, User,
 } from "@/types/domain";
 
@@ -23,10 +23,10 @@ export interface ListParams {
   sortOrder?: "asc" | "desc";
 }
 
-async function list<T>(path: string, key: string, params: ListParams & { unreadOnly?: boolean }, map: (r: unknown) => T): Promise<Paginated<T>> {
+async function list<T>(path: string, key: string, params: { page?: number; limit?: number }, map: (r: unknown) => T): Promise<Paginated<T>> {
   const page = params.page ?? 1;
   const limit = params.limit ?? 20;
-  const body = await apiGetRaw(path, { ...params, page, limit });
+  const body = await apiGetRaw(path, { ...(params as Record<string, string | number | boolean | undefined>), page, limit });
   const p = normalizePage<unknown>(body, key, { page, limit });
   return { items: p.items.map(map), meta: p.meta };
 }
@@ -54,6 +54,11 @@ export const authApi = {
 export const orgApi = {
   list: (p: ListParams = {}) => list(`/organizations`, "organizations", p, mapOrganization),
   get: async (id: string) => mapOrganization(pick(await api.get<unknown>(org(id)), "organization")),
+  /** Organization + the caller's membership (id, role and the permission list the server holds for it). */
+  getAccess: async (id: string): Promise<{ organization: Organization; membership: OrgMembership | null }> => {
+    const data = await api.get<unknown>(org(id));
+    return { organization: mapOrganization(pick(data, "organization")), membership: mapOrgMembership(pick(data, "membership")) };
+  },
   create: async (name: string) => mapOrganization(pick(await api.post<unknown>(`/organizations`, { name }), "organization")),
   update: async (id: string, b: { name?: string }) => mapOrganization(pick(await api.patch<unknown>(org(id), b), "organization")),
   remove: (id: string) => api.delete(org(id)),
@@ -91,7 +96,7 @@ export const teamApi = {
 };
 
 // ---- Projects ----
-export interface ProjectInput { name?: string; description?: string; status?: string; startDate?: string; dueDate?: string }
+export interface ProjectInput { name?: string; description?: string; status?: string; startDate?: string | null; dueDate?: string | null }
 export const projectApi = {
   list: (o: string, p: ListParams = {}) => list(`${org(o)}/projects`, "projects", p, mapProject),
   get: async (o: string, p: string) => mapProject(pick(await api.get<unknown>(proj(o, p)), "project")),
@@ -113,12 +118,20 @@ export const sprintApi = {
   create: async (o: string, p: string, b: SprintInput) => mapSprint(pick(await api.post<unknown>(`${proj(o, p)}/sprints`, b), "sprint")),
   update: async (o: string, p: string, s: string, b: Partial<SprintInput>) => mapSprint(pick(await api.patch<unknown>(`${proj(o, p)}/sprints/${s}`, b), "sprint")),
   start: async (o: string, p: string, s: string) => mapSprint(pick(await api.post<unknown>(`${proj(o, p)}/sprints/${s}/start`), "sprint")),
-  complete: async (o: string, p: string, s: string) => mapSprint(pick(await api.post<unknown>(`${proj(o, p)}/sprints/${s}/complete`), "sprint")),
+  /**
+   * `moveOpenTasksTo`: omitted = open tasks stay in the completed sprint; "BACKLOG" = back to the backlog; a sprint id = that sprint.
+   * (FRONTEND_CONTRACT §3.3 says `null`, but the backend's validation accepts "BACKLOG" | uuid and rejects null.)
+   */
+  complete: async (o: string, p: string, s: string, moveOpenTasksTo?: string): Promise<{ sprint: Sprint; movedTaskCount: number }> => {
+    const data = await api.post<unknown>(`${proj(o, p)}/sprints/${s}/complete`, moveOpenTasksTo ? { moveOpenTasksTo } : undefined);
+    const moved = pick(data, "movedTaskCount");
+    return { sprint: mapSprint(pick(data, "sprint")), movedTaskCount: typeof moved === "number" ? moved : 0 };
+  },
   remove: (o: string, p: string, s: string) => api.delete(`${proj(o, p)}/sprints/${s}`),
 };
 
 // ---- Tasks ----
-export interface TaskInput { title: string; description?: string; priority?: string; status?: string; sprintId?: string | null; assigneeMembershipId?: string | null; startDate?: string; dueDate?: string }
+export interface TaskInput { title: string; description?: string; priority?: string; status?: string; sprintId?: string | null; assigneeMembershipId?: string | null; startDate?: string | null; dueDate?: string | null }
 export const taskApi = {
   list: (o: string, p: string, q: ListParams = {}) => list(`${proj(o, p)}/tasks`, "tasks", q, mapTask),
   get: async (o: string, p: string, t: string) => mapTask(pick(await api.get<unknown>(task(o, p, t)), "task")),
@@ -154,6 +167,12 @@ export const notificationApi = {
   preferences: async (o: string): Promise<NotificationPreference[]> => pickArray(await api.get<unknown>(`${org(o)}/notifications/preferences`), "preferences").map(mapPreference),
   updatePreference: async (o: string, notificationType: string, b: { emailEnabled?: boolean; inAppEnabled?: boolean }) =>
     mapPreference(pick(await api.put<unknown>(`${org(o)}/notifications/preferences/${notificationType}`, b), "preference")),
+};
+
+// ---- Activity feed ----
+export interface ActivityParams { page?: number; limit?: number; projectId?: string; taskId?: string; actorMembershipId?: string; entityType?: string }
+export const activityApi = {
+  list: (o: string, p: ActivityParams = {}) => list<Activity>(`${org(o)}/activity`, "activities", p, mapActivity),
 };
 
 export type { Organization, Membership, Invitation, Team, Project, Sprint, Role };

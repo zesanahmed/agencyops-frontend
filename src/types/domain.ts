@@ -98,6 +98,10 @@ export interface Project {
   dueDate: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Aggregates added by the final backend (list + detail). Absent on create/update responses. */
+  taskCounts?: Record<TaskStatus, number>;
+  memberCount?: number;
+  activeSprint?: { id: string; name: string } | null;
 }
 export interface ProjectTeam { id: string; projectId: string; teamId: string }
 export interface ProjectMember { id: string; projectId: string; membershipId: string }
@@ -112,6 +116,9 @@ export interface Sprint {
   endDate: string;
 }
 
+/** `{ membershipId, user }` is how the final backend embeds people (assignee, comment author/mentions, collaborators). */
+export interface PersonRef { membershipId: string; name: string; email: string; avatarUrl: string | null }
+
 export interface Task {
   id: string;
   projectId: string;
@@ -125,6 +132,11 @@ export interface Task {
   startDate: string | null;
   dueDate: string | null;
   createdAt: string;
+  /** Added by the final backend on list + detail. */
+  assignee?: PersonRef | null;
+  subtaskCount?: number;
+  doneSubtaskCount?: number;
+  commentCount?: number;
 }
 export interface TaskCollaborator { id: string; taskId: string; membershipId: string }
 
@@ -135,16 +147,42 @@ export interface Comment {
   content: string;
   createdAt: string;
   updatedAt: string;
+  author?: PersonRef | null;
+  mentions?: PersonRef[];
 }
+
+/** Deep-link payload; its keys depend on `type` (see FRONTEND_CONTRACT §3.7). */
+export type NotificationData = Partial<Record<"projectId" | "taskId" | "commentId" | "sprintId" | "invoiceId" | "messageId" | "requestId" | "fileId" | "from" | "to", string>>;
 
 export interface AppNotification {
   id: string;
   type: string;
   title: string;
   message: string;
+  data?: NotificationData | null;
   readAt: string | null;
   createdAt: string;
 }
+
+export const ACTIVITY_ENTITY_TYPES = ["Project", "Sprint", "Task", "Comment", "Membership"] as const;
+export type ActivityEntityType = (typeof ACTIVITY_ENTITY_TYPES)[number];
+
+/** One entry of GET /organizations/:orgId/activity. `summary` is rendered as-is. */
+export interface Activity {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  projectId: string | null;
+  taskId: string | null;
+  actor: { membershipId: string; name: string } | null;
+  summary: string;
+  metadata: Record<string, string | number | boolean | null>;
+  createdAt: string;
+}
+
+/** The caller's membership in one organization, as returned by GET /organizations/:orgId. */
+export interface OrgMembership { id: string; role: Role; permissions: string[] }
 
 export interface NotificationPreference {
   id: string;

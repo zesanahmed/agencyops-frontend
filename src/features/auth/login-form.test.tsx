@@ -53,13 +53,18 @@ describe("LoginForm", () => {
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/organizations"));
   });
 
-  it("disables demo buttons until configured, and logs in with configured credentials", async () => {
-    const Unconfigured = await loadForm();
-    const { unmount } = render(<Unconfigured />);
-    for (const b of screen.getAllByRole("button", { name: "Demo login" })) expect(b).toBeDisabled();
+  it("demo buttons work out of the box with the backend's seeded accounts, and env vars can override them", async () => {
+    login.mockResolvedValue({});
+    const Seeded = await loadForm();
+    const { unmount } = render(<Seeded />);
+    const buttons = screen.getAllByRole("button", { name: "Demo login" });
+    expect(buttons).toHaveLength(3);
+    for (const b of buttons) expect(b).toBeEnabled();
+    await userEvent.click(buttons[0]);
+    await waitFor(() => expect(login).toHaveBeenCalledWith({ email: "owner@demo.agencyops.test", password: "DemoPass123!" }));
     unmount();
 
-    login.mockResolvedValue({});
+    login.mockClear();
     const LoginForm = await loadForm({ NEXT_PUBLIC_DEMO_OWNER_EMAIL: "owner@demo.test", NEXT_PUBLIC_DEMO_OWNER_PASSWORD: "pw-owner-1" });
     render(<LoginForm />);
     await userEvent.click(screen.getAllByRole("button", { name: "Demo login" })[0]);

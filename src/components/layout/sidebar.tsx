@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
-import { Bell, FolderKanban, LayoutDashboard, ListChecks, Settings, UsersRound, UserSquare2 } from "lucide-react";
+import { Activity, Bell, FolderKanban, LayoutDashboard, ListChecks, Settings, UsersRound, UserSquare2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { notificationApi } from "@/lib/api/services";
 import { qk, useOrganization } from "@/features/organizations/hooks";
@@ -31,6 +31,7 @@ export function SidebarNav({ organizationId, onNavigate }: { organizationId: str
       { href: base, label: "Overview", icon: LayoutDashboard, exact: true },
       { href: `${base}/my-work`, label: "My work", icon: ListChecks },
       { href: `${base}/projects`, label: "Projects", icon: FolderKanban },
+      { href: `${base}/activity`, label: "Activity", icon: Activity },
     ]},
     { label: "People", items: [
       { href: `${base}/teams`, label: "Teams", icon: UserSquare2 },

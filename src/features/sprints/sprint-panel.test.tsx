@@ -111,8 +111,26 @@ describe("SprintPanel", () => {
     await userEvent.click(screen.getByRole("button", { name: "Complete" }));
     expect(completeFn).not.toHaveBeenCalled();
     expect(await screen.findByText(/2 of 3 tasks are not done/)).toBeInTheDocument();
+    // The backlog is the default destination for unfinished work.
     await userEvent.click(screen.getByRole("button", { name: "Complete sprint" }));
-    expect(completeFn).toHaveBeenCalledWith("a");
+    expect(completeFn).toHaveBeenCalledWith({ id: "a", moveOpenTasksTo: "BACKLOG" });
+  });
+
+  it("can move unfinished tasks to another sprint, or leave them in place", async () => {
+    sprints = [sp({ id: "a", name: "Live one", status: "ACTIVE" }), sp({ id: "b", name: "Next one", status: "PLANNED" }), sp({ id: "c", name: "Old one", status: "COMPLETED" })];
+    tasks = [tk({ id: "1", sprintId: "a" })];
+    render(<SprintPanel projectId="p1" />);
+    await userEvent.click(screen.getByRole("button", { name: "Complete" }));
+    const select = await screen.findByLabelText("Move unfinished tasks to");
+    expect(screen.queryByRole("option", { name: /Old one/ })).not.toBeInTheDocument(); // completed sprints can't receive tasks
+    await userEvent.selectOptions(select, "b");
+    await userEvent.click(screen.getByRole("button", { name: "Complete sprint" }));
+    expect(completeFn).toHaveBeenLastCalledWith({ id: "a", moveOpenTasksTo: "b" });
+
+    await userEvent.click(screen.getByRole("button", { name: "Complete" }));
+    await userEvent.selectOptions(await screen.findByLabelText("Move unfinished tasks to"), "");
+    await userEvent.click(screen.getByRole("button", { name: "Complete sprint" }));
+    expect(completeFn).toHaveBeenLastCalledWith({ id: "a", moveOpenTasksTo: undefined });
   });
 
   it("completing a fully finished sprint shows no open-task warning", async () => {
@@ -122,5 +140,8 @@ describe("SprintPanel", () => {
     await userEvent.click(screen.getByRole("button", { name: "Complete" }));
     expect(await screen.findByText("A completed sprint can't be reopened.")).toBeInTheDocument();
     expect(screen.queryByText(/not done/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Move unfinished tasks to")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Complete sprint" }));
+    expect(completeFn).toHaveBeenCalledWith({ id: "a", moveOpenTasksTo: undefined });
   });
 });

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { authApi, invitationApi, memberApi, notificationApi, orgApi, projectApi, taskApi, teamApi } from "./services";
+import { activityApi, authApi, commentApi, invitationApi, memberApi, notificationApi, orgApi, projectApi, sprintApi, taskApi, teamApi } from "./services";
 import { invitationStatus } from "@/types/domain";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -133,5 +133,78 @@ describe("invitationStatus (the list endpoint returns every invitation ever issu
   it("accepted wins over expired, revoked wins over expired", () => {
     expect(invitationStatus({ acceptedAt: "2026-01-01T00:00:00Z", revokedAt: null, expiresAt: "2020-01-01T00:00:00Z" })).toBe("accepted");
     expect(invitationStatus({ acceptedAt: null, revokedAt: "2026-01-01T00:00:00Z", expiresAt: "2020-01-01T00:00:00Z" })).toBe("revoked");
+  });
+});
+
+/** Final-backend additions (FRONTEND_CONTRACT §3, verified against agencyops-api 08f0b20). */
+describe("final backend contract additions", () => {
+  beforeEach(() => useAuthStore.setState({ accessToken: "t", status: "authenticated" }));
+  afterEach(() => vi.restoreAllMocks());
+  const user = { id: "u1", name: "Imran Chowdhury", email: "imran@x.io", avatarUrl: null };
+
+  it("organizations: GET /:id also yields the caller's membership with the server's permission list", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(ok({ organization: { id: "o1", name: "Acme" }, membership: { id: "m1", role: "MANAGER", permissions: ["project:create", "activity:read"] } }));
+    const r = await orgApi.getAccess("o1");
+    expect(r.organization.name).toBe("Acme");
+    expect(r.membership).toEqual({ id: "m1", role: "MANAGER", permissions: ["project:create", "activity:read"] });
+  });
+
+  it("projects: list items carry taskCounts, memberCount and activeSprint; create/update responses don't", async () => {
+    const base = { id: "p1", name: "Site", slug: "site", description: null, status: "ACTIVE", startDate: null, dueDate: null, createdAt: "", updatedAt: "" };
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(ok({ projects: [{ ...base, taskCounts: { BACKLOG: 4, TODO: 4, IN_PROGRESS: 2, IN_REVIEW: 1, DONE: 5 }, memberCount: 5, activeSprint: { id: "s1", name: "Sprint 2" } }, { ...base, id: "p2", taskCounts: {}, memberCount: 0, activeSprint: null }], pagination }))
+      .mockResolvedValueOnce(ok({ project: base }, 201));
+    const [a, b] = (await projectApi.list("o1")).items;
+    expect(a.taskCounts).toEqual({ BACKLOG: 4, TODO: 4, IN_PROGRESS: 2, IN_REVIEW: 1, DONE: 5 });
+    expect([a.memberCount, a.activeSprint]).toEqual([5, { id: "s1", name: "Sprint 2" }]);
+    expect(b.taskCounts?.DONE).toBe(0); // missing statuses count as zero
+    expect(b.activeSprint).toBeNull();
+    const created = await projectApi.create("o1", { name: "Site" });
+    expect("taskCounts" in created).toBe(false);
+  });
+
+  it("tasks: assignee is flattened from { membershipId, user }; counts pass through", async () => {
+    const t = { id: "t1", projectId: "p1", title: "Build", status: "TODO", priority: "HIGH", assigneeMembershipId: "m1", assignee: { membershipId: "m1", user }, subtaskCount: 3, doneSubtaskCount: 1, commentCount: 2 };
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(ok({ tasks: [t, { ...t, id: "t2", assigneeMembershipId: null, assignee: null }], pagination }));
+    const [a, b] = (await taskApi.list("o1", "p1")).items;
+    expect(a.assignee).toEqual({ membershipId: "m1", name: "Imran Chowdhury", email: "imran@x.io", avatarUrl: null });
+    expect([a.subtaskCount, a.doneSubtaskCount, a.commentCount]).toEqual([3, 1, 2]);
+    expect(b.assignee).toBeNull();
+  });
+
+  it("comments: author and mentions are flattened", async () => {
+    const c = { id: "c1", taskId: "t1", authorMembershipId: "m1", content: "hi @Imran Chowdhury", createdAt: "", updatedAt: "", author: { membershipId: "m1", user }, mentions: [{ membershipId: "m2", user: { ...user, name: "Arif" } }] };
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(ok({ comments: [c], pagination }));
+    const [r] = (await commentApi.list("o1", "p1", "t1")).items;
+    expect(r.author?.name).toBe("Imran Chowdhury");
+    expect(r.mentions?.map((m) => m.name)).toEqual(["Arif"]);
+  });
+
+  it("notifications: data carries the deep-link ids; absent data is null", async () => {
+    const n = { id: "n1", type: "TASK_STATUS_CHANGED", title: "t", message: "m", readAt: null, createdAt: "" };
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(ok({ notifications: [{ ...n, data: { projectId: "p1", taskId: "t1", from: "TODO", to: "DONE", junk: 5 } }, { ...n, id: "n2", data: null }], pagination }));
+    const [a, b] = (await notificationApi.list("o1")).items;
+    expect(a.data).toEqual({ projectId: "p1", taskId: "t1", from: "TODO", to: "DONE" });
+    expect(b.data).toBeNull();
+  });
+
+  it("activity: unwraps data.activities and keeps the server-built summary", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(ok({ activities: [{ id: "a1", action: "task.created", entityType: "Task", entityId: "t1", projectId: "p1", taskId: "t1", actor: { membershipId: "m1", name: "Arif Hossain" }, summary: "Arif Hossain created task “Migrate blog content”", metadata: { title: "Migrate blog content" }, createdAt: "2026-10-01T00:00:00Z" }, { id: "a2", action: "member.joined", entityType: "Membership", entityId: "m9", projectId: null, taskId: null, actor: null, summary: "Someone joined", metadata: null, createdAt: "" }], pagination }));
+    const r = await activityApi.list("o1", { page: 2, limit: 20, entityType: "Task", projectId: "p1" });
+    const q = new URL(String(spy.mock.calls[0][0]), "http://x").searchParams;
+    expect([q.get("page"), q.get("entityType"), q.get("projectId")]).toEqual(["2", "Task", "p1"]);
+    expect(r.items[0]).toMatchObject({ summary: "Arif Hossain created task “Migrate blog content”", actor: { name: "Arif Hossain" }, metadata: { title: "Migrate blog content" } });
+    expect(r.items[1]).toMatchObject({ actor: null, metadata: {} });
+  });
+
+  it("sprints: complete sends moveOpenTasksTo only when given and returns movedTaskCount (the backend rejects null)", async () => {
+    const sprint = { id: "s1", projectId: "p1", name: "S1", status: "COMPLETED", startDate: "", endDate: "" };
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => ok({ sprint, movedTaskCount: 2 }));
+    const bodyOf = (i: number) => (spy.mock.calls[i][1] as RequestInit).body;
+    const r = await sprintApi.complete("o1", "p1", "s1", "BACKLOG");
+    expect(r.movedTaskCount).toBe(2);
+    expect(JSON.parse(bodyOf(0) as string)).toEqual({ moveOpenTasksTo: "BACKLOG" });
+    await sprintApi.complete("o1", "p1", "s1");
+    expect(bodyOf(1)).toBeUndefined();
   });
 });

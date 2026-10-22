@@ -92,18 +92,27 @@ copy of the real backend and a real PostgreSQL.
 
 - **Projects:** the slug is derived from the name, so a duplicate name is a 409 ("slug already exists"), shown on the
   Name field. `startDate`/`dueDate` are optional UTC calendar dates; the "due on or after start" rule only runs when
-  **both** are in the request body, so the edit form always sends both. A date **cannot be cleared**: the backend
-  coerces `null` to 1 Jan 1970, so the UI refuses to send it. Clearing the description sends `""`. Project lists sort by
-  `createdAt`, `name` or `dueDate`. There are no per-project counts, so the Overview tab derives progress from the first
-  100 top-level tasks (and says so when there are more).
+  **both** are in the request body, so the edit form always sends both. Project and task dates **can be cleared** with
+  `null` (final backend; sprint dates are required and cannot). Clearing the description sends `""`. Project lists sort
+  by `createdAt`, `name` or `dueDate`. List/detail items now carry `taskCounts`, `memberCount` and `activeSprint`
+  (typed as optional: absent on create/update responses).
+- **Sprints:** completing takes an optional `moveOpenTasksTo` of `"BACKLOG"` or a sprint id; omitted leaves open tasks in the
+  completed sprint. (`FRONTEND_CONTRACT.md` §3.3 says `null`, but the backend's validation rejects `null` — verified in
+  `sprint.validation.ts` at 08f0b20; the frontend follows the code.)
 
 - **Notifications:** the list takes `page`, `limit`, `unreadOnly`. `unreadOnly` is parsed with `z.coerce.boolean()` and
   `Boolean("false")` is `true`, so the frontend only sends it when it is `true` (sending `unreadOnly=false` returns *only*
-  unread). The unread count comes from `meta.total` of an `unreadOnly=true&limit=1` request. Responses carry no link to the
-  task/comment (the backend does not expose the notification's `data`), so a notification cannot deep-link yet. Preference
-  rows are created lazily by `PUT`, so a type with no row is shown on/on. Today the backend creates `MENTION`
-  notifications without checking `inAppEnabled`, and email is not delivered, so the preference switches are stored only.
-  There is no activity/audit-log endpoint, so there is no activity feed.
+  unread). The unread count comes from `meta.total` of an `unreadOnly=true&limit=1` request. Items carry `data` with the ids
+  needed to deep-link (`notificationHref`); notifications written before `data` existed have none and are not clickable.
+  Invoice notifications have no internal page yet. Preference rows are created lazily by `PUT`, so a type with no row is
+  shown on/on. Demo users have e-mail disabled for every type.
+- **Activity:** `GET /organizations/:id/activity` (filters `entityType`, `projectId`, `taskId`, `actorMembershipId`).
+  OWNER/MANAGER see the whole organization, TEAM_MEMBER only projects they belong to. The `summary` text is rendered as-is.
+- **Access:** `GET /organizations/:id` returns the caller's `membership` with the server's `permissions` list; the UI gates on
+  that list and only falls back to the mirrored matrix in `src/lib/rbac.ts` while it loads (no more member-directory
+  lookup to find one's own role).
+- **Demo login:** the three buttons use the accounts created by the backend's `npm run seed` (`*@demo.agencyops.test`,
+  password `DemoPass123!`); `NEXT_PUBLIC_DEMO_*` env vars override them.
 
 If the backend changes a shape, update `src/types/domain.ts`, `src/lib/api/mappers.ts` and the contract
 tests together. `npm run probe:api` prints the live response shapes to check for drift.

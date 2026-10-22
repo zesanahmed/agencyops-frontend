@@ -22,12 +22,14 @@ const PAGES: { file: string; exportName: string; title: string }[] = [
   { file: `${ORG}/notifications/page.tsx`, exportName: "Page", title: "Notifications" },
   { file: `${ORG}/settings/page.tsx`, exportName: "Page", title: "Settings" },
   { file: `${ORG}/my-work/page.tsx`, exportName: "Page", title: "My work" },
+  { file: `${ORG}/activity/page.tsx`, exportName: "ActivityPage", title: "Activity" },
 ];
 const LOADING: { file: string; ariaLabel: string }[] = [
   { file: `${ORG}/loading.tsx`, ariaLabel: "Loading" },
   { file: `${ORG}/projects/[projectId]/loading.tsx`, ariaLabel: "Loading project" },
   { file: `${ORG}/projects/[projectId]/tasks/[taskId]/loading.tsx`, ariaLabel: "Loading task" },
   { file: `${ORG}/teams/[teamId]/loading.tsx`, ariaLabel: "Loading team" },
+  { file: `${ORG}/activity/loading.tsx`, ariaLabel: "Loading activity" },
 ];
 const LAYOUTS: { file: string; exportName: string; mustContain: string; mustNotContain?: string }[] = [
   { file: "(app)/layout.tsx", exportName: "AppLayout", mustContain: "AuthGate", mustNotContain: "OrgShell" },

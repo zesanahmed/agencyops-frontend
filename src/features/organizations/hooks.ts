@@ -3,9 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { orgApi } from "@/lib/api/services";
 import { qk } from "@/lib/query-keys";
-import { useMemberDirectory } from "@/features/members/use-member-directory";
 import { useAuthStore } from "@/stores/auth-store";
-import type { Role } from "@/types/domain";
+import type { Organization, Role } from "@/types/domain";
 
 export { qk } from "@/lib/query-keys";
 
@@ -16,8 +15,14 @@ export function useOrganizations() {
   return useQuery({ queryKey: qk.orgs, queryFn: () => orgApi.list({ limit: 100 }), enabled: status === "authenticated" });
 }
 
+/** One request serves both the organization and the caller's membership (id, role, permissions). */
+function useOrgAccessQuery(id: string) {
+  return useQuery({ queryKey: qk.org(id), queryFn: () => orgApi.getAccess(id), enabled: authed() });
+}
+
 export function useOrganization(id: string) {
-  return useQuery({ queryKey: qk.org(id), queryFn: () => orgApi.get(id), enabled: authed() });
+  const q = useOrgAccessQuery(id);
+  return { ...q, data: q.data?.organization } as Omit<typeof q, "data"> & { data: Organization | undefined };
 }
 
 export function useCreateOrganization() {
@@ -26,15 +31,11 @@ export function useCreateOrganization() {
 }
 
 /**
- * The caller's membership in an organization. The backend exposes the caller's
- * role only through the members list (organizations carry no role), so we find
- * ourselves in the member directory. UX only: the backend enforces permissions.
+ * The caller's membership in an organization: role, membershipId and the server's permission list, all from
+ * GET /organizations/:id. UX only: the backend enforces permissions on every request.
  */
-export function useOrgMembership(organizationId: string): { role: Role | undefined; membershipId: string | undefined; isLoading: boolean } {
-  const user = useAuthStore((s) => s.user);
-  const org = useOrganization(organizationId);
-  // Don't ask for members of an organization we already know is inaccessible.
-  const dir = useMemberDirectory(organizationId, org.isSuccess);
-  const me = user ? dir.list.find((m) => m.userId === user.id) : undefined;
-  return { role: me?.role, membershipId: me?.id, isLoading: org.isLoading || (org.isSuccess && dir.isLoading) };
+export function useOrgMembership(organizationId: string): { role: Role | undefined; membershipId: string | undefined; permissions: string[] | undefined; isLoading: boolean } {
+  const q = useOrgAccessQuery(organizationId);
+  const m = q.data?.membership ?? undefined;
+  return { role: m?.role, membershipId: m?.id, permissions: m?.permissions, isLoading: q.isLoading };
 }

@@ -90,11 +90,11 @@ describe("ProjectFormDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("edit: explains that an existing date can be changed but not removed", async () => {
+  it("edit: emptying a date clears it on the backend (sends null)", async () => {
+    updateFn.mockResolvedValue(PROJECT);
     render(<ProjectFormDialog mode="edit" project={PROJECT} open onOpenChange={vi.fn()} />);
     await userEvent.clear(screen.getByLabelText(/Due date/));
     await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
-    expect(await screen.findByText("A due date can be changed but not removed")).toBeInTheDocument();
-    expect(updateFn).not.toHaveBeenCalled();
+    await waitFor(() => expect(updateFn).toHaveBeenCalledWith(expect.objectContaining({ dueDate: null, startDate: "2026-01-01T00:00:00.000Z" })));
   });
 });

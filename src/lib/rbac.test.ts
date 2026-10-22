@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PERMISSIONS, can, type Permission } from "./rbac";
+import { PERMISSIONS, can, canWith, type Permission } from "./rbac";
 import type { Role } from "@/types/domain";
 
 const allowed = (role: Role) => PERMISSIONS.filter((p) => can(role, p));
@@ -11,15 +11,30 @@ describe("RBAC matrix mirrors the backend", () => {
     expect(denied("OWNER")).toEqual([]);
   });
 
-  it("MANAGER lacks exactly the organization/membership administration permissions", () => {
-    expect(denied("MANAGER")).toEqual<Permission[]>(["organization:update", "organization:delete", "membership:update", "membership:remove"]);
+  it("MANAGER lacks exactly the organization/membership administration permissions and billing management", () => {
+    expect(denied("MANAGER")).toEqual<Permission[]>(["organization:update", "organization:delete", "membership:update", "membership:remove", "billing:manage"]);
   });
 
-  it("TEAM_MEMBER can read, create/update tasks and comment — nothing else", () => {
+  it("TEAM_MEMBER can read, create/update tasks, comment and see their projects' activity — nothing else", () => {
     expect(allowed("TEAM_MEMBER").sort()).toEqual<Permission[]>([
+      "activity:read", "client-portal:read", "client:read",
       "comment:create", "comment:read", "membership:read", "organization:read", "project:read",
       "sprint:read", "task:create", "task:read", "task:update", "team:read",
     ].sort() as Permission[]);
+  });
+
+  it("only OWNER/MANAGER read the whole organization's activity; only OWNER manages billing", () => {
+    expect(can("TEAM_MEMBER", "activity:read-all")).toBe(false);
+    expect(can("MANAGER", "activity:read-all")).toBe(true);
+    expect(can("MANAGER", "billing:manage")).toBe(false);
+    expect(can("OWNER", "billing:manage")).toBe(true);
+  });
+
+  it("canWith trusts the server's permission list and falls back to the matrix while it is missing", () => {
+    expect(canWith("OWNER", ["task:read"], "task:delete")).toBe(false);
+    expect(canWith("TEAM_MEMBER", ["task:read", "task:delete"], "task:delete")).toBe(true);
+    expect(canWith("MANAGER", undefined, "task:delete")).toBe(true);
+    expect(canWith(undefined, [], "task:delete")).toBe(false);
   });
 
   it("only OWNER can change roles, remove members or edit/delete the organization", () => {

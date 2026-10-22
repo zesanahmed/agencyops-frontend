@@ -108,4 +108,16 @@ describe("NotificationsView", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't load notifications");
     expect(screen.getByRole("link", { name: /Preferences/ })).toHaveAttribute("href", "/organizations/o1/settings");
   });
+
+  it("links a notification to its task and marks it read on click", async () => {
+    markRead.mockResolvedValue({});
+    items = [note({ id: "a", title: "Assigned to you", type: "TASK_ASSIGNED", data: { projectId: "p1", taskId: "t1" } }), note({ id: "b", title: "Old style", data: null })];
+    listMeta = meta(2); unreadTotal = 2;
+    setup();
+    const link = await screen.findByRole("link", { name: "Assigned to you" });
+    expect(link).toHaveAttribute("href", "/organizations/o1/projects/p1/tasks/t1");
+    expect(screen.queryByRole("link", { name: "Old style" })).not.toBeInTheDocument(); // no data, no target
+    await userEvent.click(link);
+    await waitFor(() => expect(markRead).toHaveBeenCalledWith("o1", "a"));
+  });
 });

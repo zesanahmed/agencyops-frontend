@@ -38,8 +38,8 @@ describe("buildProjectPayload", () => {
   it("edit: lets a project without dates stay without dates", () => {
     expect(buildProjectPayload({ name: "Site", description: "x", startDate: "", dueDate: "" }, project({ startDate: null, dueDate: null }))).toEqual({ ok: true, payload: { name: "Site", description: "x" } });
   });
-  it("edit: refuses to clear a date that is already set (the backend can't clear it)", () => {
-    expect(buildProjectPayload({ name: "Site", startDate: "", dueDate: "2026-02-01" }, project())).toMatchObject({ ok: false, field: "startDate" });
-    expect(buildProjectPayload({ name: "Site", startDate: "2026-01-01", dueDate: "" }, project())).toMatchObject({ ok: false, field: "dueDate" });
+  it("edit: clears a date the user emptied by sending null (the backend's clearableDate), and keeps the other one", () => {
+    expect(buildProjectPayload({ name: "Site", startDate: "", dueDate: "2026-02-01" }, project())).toEqual({ ok: true, payload: { name: "Site", description: "", startDate: null, dueDate: "2026-02-01T00:00:00.000Z" } });
+    expect(buildProjectPayload({ name: "Site", startDate: "2026-01-01", dueDate: "" }, project())).toEqual({ ok: true, payload: { name: "Site", description: "", startDate: "2026-01-01T00:00:00.000Z", dueDate: null } });
   });
 });

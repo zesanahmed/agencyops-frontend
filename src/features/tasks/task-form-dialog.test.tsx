@@ -81,11 +81,11 @@ describe("TaskFormDialog", () => {
     expect(createFn).not.toHaveBeenCalled();
   });
 
-  it("edit: explains that a set date can be changed but not removed", async () => {
+  it("edit: emptying a date clears it on the backend (sends null)", async () => {
+    updateFn.mockResolvedValue(TASK);
     render(<TaskFormDialog mode="edit" projectId="p1" task={TASK} open onOpenChange={vi.fn()} />);
     await userEvent.clear(screen.getByLabelText(/Start date/));
     await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
-    expect(await screen.findByText("A start date can be changed but not removed")).toBeInTheDocument();
-    expect(updateFn).not.toHaveBeenCalled();
+    await waitFor(() => expect(updateFn).toHaveBeenCalledWith(expect.objectContaining({ startDate: null })));
   });
 });

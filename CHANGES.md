@@ -1,54 +1,22 @@
-# CHANGES — Phase E (Teams)
+# CHANGES — Phase I (final contract sync, Activity feed, demo login)
 
-Compared with your GitHub `main` (Phase D, commit `2449bdb`; identical to sandbox baseline `6fc8a7b`).
+Compared with your GitHub `main` (`12b04d7`, end of Phase H). Backend verified at `agencyops-api` `08f0b20`.
 
 ## Summary
-- **Team pages.** The teams list is now a grid of cards (real member avatars, member and project counts) linking to a
-  new team detail page `/organizations/[id]/teams/[teamId]` with **Members** and **Projects** tabs (`?tab=`).
-- **Workload.** Members show their open-task count (derived from open projects; the backend has no such endpoint) and
-  the page shows Members / Projects / Open tasks stats.
-- **Edit and delete.** Teams can be renamed or re-described (clearing a description sends `""`: the backend rejects
-  `null`). Duplicate names (409) appear on the Name field. Deleting warns when the team is assigned to projects.
-- **Assignment workflow in both directions.** From a team, assign it to projects; from a project, the new **Teams** tab
-  assigns teams. Both explain that assigning a team does *not* add its people to the project (the backend has no such sync).
-- **Backend quirks handled.** Someone removed from the organization can still be on a team ("Former member", removable);
-  the backend still lists assignments of deleted teams ("Deleted team", with Unassign); a malformed or unknown team id
-  shows "Team not found".
-- **Role-aware.** OWNER/MANAGER can create, edit, delete and manage members/assignments; TEAM_MEMBER sees everything read-only.
-- **Breadcrumbs** show the team name. **README** now documents the team rules, the new backend CORS/rate limits, and a
-  deployment warning about the per-IP rate limiters behind the same-origin rewrite.
-- **Tests:** 119 -> 152 (team detail for all roles, project teams panel, form 409 handling, list, workload helpers,
-  breadcrumbs, route manifest, `useAction`).
+- **Demo login works out of the box.** The three buttons now default to the seeded accounts
+  (`owner@/manager@/member@demo.agencyops.test`, `DemoPass123!`); env vars only override them.
+- **Activity feed** at `/organizations/[id]/activity` (new sidebar item): newest-first, grouped by day, filter by type and
+  project, paginated, all in the URL. The server's `summary` is shown as-is and links to the task/project (never to deleted things).
+- **Server-provided permissions.** `GET /organizations/:id` now gives the caller's membership and permission list; the UI
+  gates on it (RBAC mirror updated for the new `client:*`, `billing:*`, `invoice:*`, `activity:*` permissions and the
+  Manager/Team member differences). One request instead of the whole member directory just to learn one's own role.
+- **Notifications deep-link** to the task / sprint / project via `data`, are marked read on click, and know all 9 types.
+- **Sprint completion** asks where unfinished tasks should go (backlog, another open sprint, or stay) and reports how many moved.
+- **Dates can be cleared** on projects and tasks (the backend now accepts `null`).
+- **Types/mappers** extended for the final contract (project `taskCounts/memberCount/activeSprint`, task `assignee` and counts,
+  comment `author/mentions`, notification `data`, activity). All new fields are optional so nothing existing changed shape.
+- **Contract discrepancy found:** `FRONTEND_CONTRACT.md` §3.3 says sprint-complete accepts `moveOpenTasksTo: null`; the backend
+  code accepts only `"BACKLOG"` or a sprint id. The frontend follows the code. Worth telling Claude-1 to fix the doc.
 
-## New files
-- `src/app/(app)/organizations/[organizationId]/teams/[teamId]/loading.tsx`
-- `src/app/(app)/organizations/[organizationId]/teams/[teamId]/page.tsx`
-- `src/components/shared/avatar-stack.tsx`
-- `src/features/projects/project-teams-panel.test.tsx`
-- `src/features/projects/project-teams-panel.tsx`
-- `src/features/teams/hooks.ts`
-- `src/features/teams/schemas.ts`
-- `src/features/teams/team-detail.test.tsx`
-- `src/features/teams/team-detail.tsx`
-- `src/features/teams/team-form-dialog.test.tsx`
-- `src/features/teams/team-form-dialog.tsx`
-- `src/features/teams/team-members-panel.tsx`
-- `src/features/teams/team-projects-panel.tsx`
-- `src/features/teams/teams-view.test.tsx`
-- `src/features/teams/workload.test.ts`
-- `src/features/teams/workload.ts`
-
-## Changed files
-- `README.md`
-- `src/app/route-manifest.test.ts`
-- `src/components/layout/breadcrumbs.tsx`
-- `src/features/projects/project-workspace.tsx`
-- `src/features/teams/teams-view.tsx`
-- `src/lib/breadcrumbs.test.ts`
-- `src/lib/breadcrumbs.ts`
-- `src/lib/query-keys.ts`
-- `src/lib/use-action.test.tsx`
-- `src/lib/use-action.ts`
-
-## Removed files
-- (none)
+## Tests
+304 -> 333 tests (new: activity view + helpers, final-contract mappers, sprint completion, notification links, date clearing, RBAC matrix).

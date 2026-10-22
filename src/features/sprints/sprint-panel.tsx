@@ -16,6 +16,7 @@ import { orderSprints, sprintTaskProgress, timeElapsedPct } from "@/features/pro
 import { formatCalendarDate } from "@/lib/format";
 import type { Sprint, Task } from "@/types/domain";
 import { useCompleteSprint, useDeleteSprint, useStartSprint } from "./hooks";
+import { CompleteSprintDialog } from "./complete-sprint-dialog";
 import { SprintFormDialog } from "./sprint-form-dialog";
 
 const TASK_PAGE = 100; // backend maximum page size; same params as the Overview so both share one cached request
@@ -90,15 +91,13 @@ export function SprintPanel({ projectId }: { projectId: string }) {
 
       <SprintFormDialog mode="create" projectId={projectId} open={creating} onOpenChange={setCreating} />
       <SprintFormDialog mode="edit" projectId={projectId} sprint={editing ?? undefined} open={!!editing} onOpenChange={(v) => !v && setEditing(null)} />
-      <ConfirmDialog open={!!completing} onOpenChange={(v) => !v && setCompleting(null)} title={`Complete ${completing?.name ?? "sprint"}?`}
-        description={(() => {
-          const p = completing ? sprintTaskProgress(tasks, completing.id) : { total: 0, done: 0 };
-          const open = p.total - p.done;
-          return open > 0
-            ? `${open} of ${p.total} ${p.total === 1 ? "task is" : "tasks are"} not done. They stay in this sprint; move them to another sprint from the task page. A completed sprint can't be reopened.`
-            : "A completed sprint can't be reopened.";
-        })()}
-        confirmLabel="Complete sprint" onConfirm={() => complete.mutateAsync(completing!.id)} />
+      {completing ? (() => {
+        const p = sprintTaskProgress(tasks, completing.id);
+        return <CompleteSprintDialog sprint={completing} openCount={p.total - p.done} totalCount={p.total}
+          targets={(data?.items ?? []).filter((x) => x.id !== completing.id && x.status !== "COMPLETED")}
+          onOpenChange={(v) => !v && setCompleting(null)}
+          onConfirm={(id, to) => complete.mutateAsync({ id, moveOpenTasksTo: to || undefined })} />;
+      })() : null}
       <ConfirmDialog open={!!deleting} onOpenChange={(v) => !v && setDeleting(null)} title="Delete sprint?" description={`“${deleting?.name}” will be removed. Only planned sprints can be deleted.`} confirmLabel="Delete sprint" destructive onConfirm={() => remove.mutateAsync(deleting!.id)} />
     </div>
   );

@@ -35,9 +35,11 @@ describe("buildTaskPayload", () => {
       ok: true, payload: { title: "T", priority: "MEDIUM", description: "", assigneeMembershipId: null, sprintId: null, startDate: "2026-01-01T00:00:00.000Z", dueDate: "2026-01-12T00:00:00.000Z" },
     });
   });
-  it("edit: refuses to clear a date that is already set (the backend would store 1970)", () => {
-    expect(buildTaskPayload({ ...base, startDate: "", dueDate: "2026-01-10" }, task())).toMatchObject({ ok: false, field: "startDate" });
-    expect(buildTaskPayload({ ...base, startDate: "2026-01-01", dueDate: "" }, task())).toMatchObject({ ok: false, field: "dueDate" });
-    expect(buildTaskPayload({ ...base, startDate: "", dueDate: "" }, task({ startDate: null, dueDate: null }))).toMatchObject({ ok: true });
+  it("edit: clears a date the user emptied by sending null; a task that never had dates sends none", () => {
+    expect(buildTaskPayload({ ...base, startDate: "", dueDate: "2026-01-10" }, task())).toMatchObject({ ok: true, payload: { startDate: null, dueDate: "2026-01-10T00:00:00.000Z" } });
+    expect(buildTaskPayload({ ...base, startDate: "2026-01-01", dueDate: "" }, task())).toMatchObject({ ok: true, payload: { startDate: "2026-01-01T00:00:00.000Z", dueDate: null } });
+    const none = buildTaskPayload({ ...base, startDate: "", dueDate: "" }, task({ startDate: null, dueDate: null }));
+    expect(none).toMatchObject({ ok: true });
+    if (none.ok) { expect("startDate" in none.payload).toBe(false); expect("dueDate" in none.payload).toBe(false); }
   });
 });
