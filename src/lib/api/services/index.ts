@@ -1,12 +1,12 @@
-import { api, apiGetRaw } from "../client";
+import { api, apiGetRaw, apiUpload, type UploadOptions } from "../client";
 import { normalizePage, type Paginated } from "../pagination";
 import {
-  mapActivity, mapSession, mapComment, mapInvitation, mapInvitationPreview, mapMembership, mapNotification, mapOrganization, mapOrgMembership,
+  mapActivity, mapSession, mapProjectUpdate, mapProjectMessage, mapSharedFile, mapClientRequest, mapAttachment, mapClient, mapClientAccess, mapClientContact, mapClientProject, mapContactInvite, mapInvoice, mapBilling, mapComment, mapInvitation, mapInvitationPreview, mapMembership, mapNotification, mapOrganization, mapOrgMembership,
   mapPreference, mapProject, mapProjectMember, mapProjectTeam, mapSprint, mapTask, mapTaskCollaborator,
   mapTeam, mapTeamMember, mapUser, pick, pickArray,
 } from "../mappers";
 import type {
-  Activity, AppNotification, OrgMembership, Comment, Invitation, InvitationPreview, Membership, NotificationPreference, Organization,
+  Activity, AppNotification, ClientRequest, ProjectMessage, ProjectUpdate, SharedFile, TaskAttachment, Billing, Client, ClientAccess, ClientContact, ClientProject, ContactInviteResult, Invoice, OrgMembership, Comment, Invitation, InvitationPreview, Membership, NotificationPreference, Organization,
   Project, ProjectMember, ProjectTeam, Role, AssignableRole, Sprint, Task, TaskCollaborator, Team, TeamMember, User,
 } from "@/types/domain";
 
@@ -186,6 +186,85 @@ export const notificationApi = {
     mapPreference(pick(await api.put<unknown>(`${org(o)}/notifications/preferences/${notificationType}`, b), "preference")),
 };
 
+// ---- Clients (OWNER/MANAGER manage; TEAM_MEMBER read) ----
+export interface ClientBody { name: string; website?: string | null; notes?: string | null }
+export const clientApi = {
+  list: (o: string, p: { page?: number; limit?: number; search?: string; sortBy?: string; sortOrder?: "asc" | "desc" } = {}) => list<Client>(`${org(o)}/clients`, "clients", p, mapClient),
+  get: async (o: string, id: string) => mapClient(pick(await api.get<unknown>(`${org(o)}/clients/${id}`), "client")),
+  create: async (o: string, b: ClientBody) => mapClient(pick(await api.post<unknown>(`${org(o)}/clients`, b), "client")),
+  update: async (o: string, id: string, b: Partial<ClientBody>) => mapClient(pick(await api.patch<unknown>(`${org(o)}/clients/${id}`, b), "client")),
+  remove: (o: string, id: string) => api.delete(`${org(o)}/clients/${id}`),
+  contacts: async (o: string, id: string): Promise<ClientContact[]> => pickArray(await api.get<unknown>(`${org(o)}/clients/${id}/contacts`), "contacts").map(mapClientContact),
+  createContact: async (o: string, id: string, b: { name: string; email: string; jobTitle?: string }): Promise<ContactInviteResult> => mapContactInvite(await api.post<unknown>(`${org(o)}/clients/${id}/contacts`, b)),
+  updateContact: async (o: string, id: string, contactId: string, b: { name?: string; jobTitle?: string | null }) => mapClientContact(pick(await api.patch<unknown>(`${org(o)}/clients/${id}/contacts/${contactId}`, b), "contact")),
+  reinvite: async (o: string, id: string, contactId: string): Promise<ContactInviteResult> => mapContactInvite(await api.post<unknown>(`${org(o)}/clients/${id}/contacts/${contactId}/reinvite`)),
+  enableContact: async (o: string, id: string, contactId: string): Promise<ContactInviteResult> => mapContactInvite(await api.post<unknown>(`${org(o)}/clients/${id}/contacts/${contactId}/enable`)),
+  disableContact: (o: string, id: string, contactId: string) => api.delete(`${org(o)}/clients/${id}/contacts/${contactId}`),
+  projects: async (o: string, id: string): Promise<ClientProject[]> => pickArray(await api.get<unknown>(`${org(o)}/clients/${id}/projects`), "projects").map(mapClientProject),
+  linkProject: (o: string, id: string, projectId: string) => api.post<void>(`${org(o)}/clients/${id}/projects`, { projectId }),
+  unlinkProject: (o: string, id: string, projectId: string) => api.delete(`${org(o)}/clients/${id}/projects/${projectId}`),
+  access: async (o: string, id: string, contactId: string): Promise<ClientAccess[]> => pickArray(await api.get<unknown>(`${org(o)}/clients/${id}/contacts/${contactId}/access`), "access").map(mapClientAccess),
+  grantAccess: (o: string, id: string, contactId: string, projectId: string) => api.post<void>(`${org(o)}/clients/${id}/contacts/${contactId}/access`, { projectId }),
+  revokeAccess: (o: string, id: string, contactId: string, projectId: string) => api.delete(`${org(o)}/clients/${id}/contacts/${contactId}/access/${projectId}`),
+};
+
+// ---- Invoices (staff) ----
+export interface InvoiceBody {
+  clientId: string; projectId?: string | null; issueDate: string; dueDate: string; currency: string;
+  taxCents: number; discountCents: number; notes?: string | null;
+  items: { description: string; quantity: number; unitAmountCents: number }[];
+}
+export const invoiceApi = {
+  list: (o: string, p: { page?: number; limit?: number; status?: string; clientId?: string; projectId?: string } = {}) => list<Invoice>(`${org(o)}/invoices`, "invoices", p, mapInvoice),
+  get: async (o: string, id: string) => mapInvoice(await api.get<unknown>(`${org(o)}/invoices/${id}`)),
+  /** `clientId` can't be changed after creation. */
+  create: async (o: string, b: InvoiceBody) => mapInvoice(await api.post<unknown>(`${org(o)}/invoices`, b)),
+  update: async (o: string, id: string, b: Partial<Omit<InvoiceBody, "clientId">>) => mapInvoice(await api.patch<unknown>(`${org(o)}/invoices/${id}`, b)),
+  /** DRAFT -> OPEN. 409 when not a draft; 422 when it has no items or a zero total. */
+  send: async (o: string, id: string) => mapInvoice(await api.post<unknown>(`${org(o)}/invoices/${id}/send`)),
+  /** DRAFT|OPEN -> VOID. A paid invoice can't be voided (409). */
+  void: async (o: string, id: string) => mapInvoice(await api.post<unknown>(`${org(o)}/invoices/${id}/void`)),
+  /** Queues the PDF render on the worker (202); `pdfUrl` appears on the invoice once it's done. */
+  requestPdf: (o: string, id: string) => api.post<void>(`${org(o)}/invoices/${id}/pdf`),
+};
+
+// ---- Billing (subscription) ----
+export const billingApi = {
+  get: async (o: string): Promise<Billing> => mapBilling(await api.get<unknown>(`${org(o)}/billing`)),
+  /** OWNER. Returns the Stripe Checkout URL. 409 when already on Pro; 503 when payments aren't configured. */
+  checkout: async (o: string): Promise<string> => { const u = pick(await api.post<unknown>(`${org(o)}/billing/checkout`), "url"); if (typeof u !== "string" || !u) throw new Error("No checkout URL returned"); return u; },
+  /** OWNER. Returns the Stripe customer-portal URL. 409 before the first subscription. */
+  portal: async (o: string): Promise<string> => { const u = pick(await api.post<unknown>(`${org(o)}/billing/portal`), "url"); if (typeof u !== "string" || !u) throw new Error("No portal URL returned"); return u; },
+};
+
+// ---- Client collaboration, staff side (/organizations/:id/client-portal/...) ----
+const portal = (o: string, p: string) => `${org(o)}/client-portal/projects/${p}`;
+export interface RequestListParams { page?: number; limit?: number; projectId?: string; status?: string; type?: string }
+export const collabApi = {
+  updates: (o: string, p: string, q: { page?: number; limit?: number } = {}) => list<ProjectUpdate>(`${portal(o, p)}/updates`, "updates", q, mapProjectUpdate),
+  postUpdate: async (o: string, p: string, b: { title: string; body: string }) => mapProjectUpdate(pick(await api.post<unknown>(`${portal(o, p)}/updates`, b), "update")),
+  deleteUpdate: (o: string, p: string, id: string) => api.delete(`${portal(o, p)}/updates/${id}`),
+  messages: (o: string, p: string, q: { page?: number; limit?: number } = {}) => list<ProjectMessage>(`${portal(o, p)}/messages`, "messages", q, mapProjectMessage),
+  postMessage: async (o: string, p: string, content: string) => mapProjectMessage(pick(await api.post<unknown>(`${portal(o, p)}/messages`, { content }), "message")),
+  deleteMessage: (o: string, p: string, id: string) => api.delete(`${portal(o, p)}/messages/${id}`),
+  files: (o: string, p: string, q: { page?: number; limit?: number } = {}) => list<SharedFile>(`${portal(o, p)}/files`, "files", q, mapSharedFile),
+  uploadFile: async (o: string, p: string, file: File, opts?: UploadOptions) => mapSharedFile(pick(await apiUpload<unknown>(`${portal(o, p)}/files`, file, opts), "file")),
+  deleteFile: (o: string, p: string, id: string) => api.delete(`${portal(o, p)}/files/${id}`),
+  requests: (o: string, q: RequestListParams = {}) => list<ClientRequest>(`${org(o)}/client-portal/requests`, "requests", q, mapClientRequest),
+  /** OWNER/MANAGER. `resolutionNote: null` clears the note. */
+  updateRequest: async (o: string, id: string, b: { status?: string; resolutionNote?: string | null }) => mapClientRequest(pick(await api.patch<unknown>(`${org(o)}/client-portal/requests/${id}`, b), "request")),
+  /** Returns the task's new visibility (the only place the backend reports it). */
+  setTaskVisibility: async (o: string, p: string, t: string, clientVisible: boolean): Promise<boolean> => pick(pick(await api.patch<unknown>(`${portal(o, p)}/tasks/${t}/visibility`, { clientVisible }), "task"), "clientVisible") === true,
+};
+
+// ---- Task attachments (internal) ----
+const attPath = (o: string, p: string, t: string) => `${org(o)}/projects/${p}/tasks/${t}/attachments`;
+export const attachmentApi = {
+  list: async (o: string, p: string, t: string): Promise<TaskAttachment[]> => pickArray(await api.get<unknown>(attPath(o, p, t)), "attachments").map(mapAttachment),
+  upload: async (o: string, p: string, t: string, file: File, opts?: UploadOptions) => mapAttachment(pick(await apiUpload<unknown>(attPath(o, p, t), file, opts), "attachment")),
+  remove: (o: string, p: string, t: string, id: string) => api.delete(`${attPath(o, p, t)}/${id}`),
+};
+
 // ---- Activity feed ----
 export interface ActivityParams { page?: number; limit?: number; projectId?: string; taskId?: string; actorMembershipId?: string; entityType?: string }
 export const activityApi = {
@@ -193,3 +272,5 @@ export const activityApi = {
 };
 
 export type { Organization, Membership, Invitation, Team, Project, Sprint, Role };
+
+export { portalAuthApi, portalProjectsApi, type PortalAuthResult } from "./portal";

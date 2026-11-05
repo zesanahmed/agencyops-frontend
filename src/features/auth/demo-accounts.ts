@@ -22,3 +22,10 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
 ];
 
 export const isDemoConfigured = (a: DemoAccount) => Boolean(a.email && a.password);
+
+/** The seeded portal contact (organization slug + e-mail + password), for the one-click client demo. Overridable like the others. */
+export const DEMO_CLIENT = {
+  organizationSlug: process.env.NEXT_PUBLIC_DEMO_CLIENT_ORG || "brightline-studio",
+  email: process.env.NEXT_PUBLIC_DEMO_CLIENT_EMAIL || "client@demo.agencyops.test",
+  password: process.env.NEXT_PUBLIC_DEMO_CLIENT_PASSWORD || SEED_PASSWORD,
+};

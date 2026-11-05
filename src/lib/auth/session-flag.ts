@@ -20,3 +20,22 @@ export function hasSessionFlag(): boolean {
   if (typeof document === "undefined") return false;
   return document.cookie.split("; ").some((c) => c === `${SESSION_FLAG}=1`);
 }
+
+/**
+ * The same non-sensitive hint for the client portal, in its own cookie: a staff session says nothing about a portal
+ * session and vice versa (they are separate security boundaries).
+ */
+export const PORTAL_SESSION_FLAG = "ao_portal_session";
+
+export function setPortalSessionFlag(): void {
+  if (typeof document === "undefined") return;
+  document.cookie = `${PORTAL_SESSION_FLAG}=1; Path=/; Max-Age=${60 * 60 * 24 * 7}; SameSite=Strict${location.protocol === "https:" ? "; Secure" : ""}`;
+}
+export function clearPortalSessionFlag(): void {
+  if (typeof document === "undefined") return;
+  document.cookie = `${PORTAL_SESSION_FLAG}=; Path=/; Max-Age=0; SameSite=Strict`;
+}
+export function hasPortalSessionFlag(): boolean {
+  if (typeof document === "undefined") return false;
+  return document.cookie.split("; ").some((c) => c === `${PORTAL_SESSION_FLAG}=1`);
+}

@@ -1,4 +1,8 @@
 import {
+  CONTACT_STATUSES, INVOICE_STATUSES, REQUEST_STATUSES, REQUEST_TYPES,
+  type PortalContact, type PortalProgress, type PortalProject, type PortalTask,
+  type ClientRequest, type ProjectMessage, type ProjectUpdate, type SharedFile, type TaskAttachment, PAYMENT_STATUSES, PLAN_CODES,
+  type Billing, type Client, type ClientAccess, type ClientContact, type ClientProject, type ContactInviteResult, type Invoice, type InvoiceItem, type InvoicePayment,
   ROLES, PROJECT_STATUSES, SPRINT_STATUSES, TASK_PRIORITIES, TASK_STATUSES,
   type Activity, type AppNotification, type UserSession, type NotificationData, type OrgMembership, type PersonRef, type Comment, type Invitation, type InvitationPreview, type Membership,
   type NotificationPreference, type Organization, type Project, type ProjectMember, type ProjectTeam,
@@ -132,6 +136,7 @@ export function mapTask(raw: unknown): Task {
     ...(num(r.subtaskCount) !== undefined ? { subtaskCount: num(r.subtaskCount) } : {}),
     ...(num(r.doneSubtaskCount) !== undefined ? { doneSubtaskCount: num(r.doneSubtaskCount) } : {}),
     ...(num(r.commentCount) !== undefined ? { commentCount: num(r.commentCount) } : {}),
+    ...(typeof r.clientVisible === "boolean" ? { clientVisible: r.clientVisible } : {}),
   };
 }
 export function mapTaskCollaborator(raw: unknown): TaskCollaborator {
@@ -184,4 +189,113 @@ export function mapOrgMembership(raw: unknown): OrgMembership | null {
 export function mapPreference(raw: unknown): NotificationPreference {
   const r = rec(raw);
   return { id: str(r.id), notificationType: str(r.notificationType), inAppEnabled: r.inAppEnabled === true, emailEnabled: r.emailEnabled === true };
+}
+
+// ---- Clients ----
+export function mapClient(raw: unknown): Client {
+  const r = rec(raw);
+  return { id: str(r.id), name: str(r.name), website: nstr(r.website), notes: nstr(r.notes), createdAt: str(r.createdAt), updatedAt: str(r.updatedAt) };
+}
+export function mapClientContact(raw: unknown): ClientContact {
+  const r = rec(raw);
+  return {
+    id: str(r.id), clientOrganizationId: str(r.clientOrganizationId), name: str(r.name), email: str(r.email), jobTitle: nstr(r.jobTitle),
+    status: oneOf(CONTACT_STATUSES, r.status, "INVITED"), lastLoginAt: nstr(r.lastLoginAt), createdAt: str(r.createdAt),
+  };
+}
+export function mapContactInvite(raw: unknown): ContactInviteResult {
+  const r = rec(raw);
+  return { contact: mapClientContact(r.contact), inviteToken: nstr(r.inviteToken) };
+}
+export function mapClientProject(raw: unknown): ClientProject {
+  const r = rec(raw);
+  return { id: str(r.id), name: str(r.name), slug: str(r.slug), status: oneOf(PROJECT_STATUSES, r.status, "PLANNING") };
+}
+export function mapClientAccess(raw: unknown): ClientAccess {
+  const r = rec(raw);
+  return { id: str(r.id), clientContactId: str(r.clientContactId), projectId: str(r.projectId), createdAt: str(r.createdAt) };
+}
+
+// ---- Invoices & billing ----
+const int = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? Math.trunc(v) : 0);
+function mapInvoiceItem(raw: unknown): InvoiceItem {
+  const r = rec(raw);
+  return { description: str(r.description), quantity: int(r.quantity), unitAmountCents: int(r.unitAmountCents), amountCents: int(r.amountCents) };
+}
+function mapInvoicePayment(raw: unknown): InvoicePayment {
+  const r = rec(raw);
+  return { id: str(r.id), amountCents: int(r.amountCents), currency: str(r.currency, "usd"), status: oneOf(PAYMENT_STATUSES, r.status, "PENDING"), failureReason: nstr(r.failureReason), paidAt: nstr(r.paidAt), createdAt: str(r.createdAt) };
+}
+export function mapInvoice(raw: unknown): Invoice {
+  const r = rec(raw);
+  return {
+    id: str(r.id), number: str(r.number), status: oneOf(INVOICE_STATUSES, r.status, "DRAFT"), clientId: str(r.clientId), projectId: nstr(r.projectId),
+    issueDate: str(r.issueDate), dueDate: str(r.dueDate), currency: str(r.currency, "usd"),
+    subtotalCents: int(r.subtotalCents), taxCents: int(r.taxCents), discountCents: int(r.discountCents), totalCents: int(r.totalCents),
+    notes: nstr(r.notes), sentAt: nstr(r.sentAt), paidAt: nstr(r.paidAt), voidedAt: nstr(r.voidedAt), pdfUrl: nstr(r.pdfUrl), pdfGeneratedAt: nstr(r.pdfGeneratedAt), createdAt: str(r.createdAt),
+    items: Array.isArray(r.items) ? r.items.map(mapInvoiceItem) : [], payments: Array.isArray(r.payments) ? r.payments.map(mapInvoicePayment) : [],
+  };
+}
+export function mapBilling(raw: unknown): Billing {
+  const r = rec(raw);
+  const plan = rec(r.plan);
+  const sub = rec(r.subscription);
+  const limit = (v: unknown): number | null => (typeof v === "number" ? v : null);
+  return {
+    plan: { code: oneOf(PLAN_CODES, plan.code, "FREE"), name: str(plan.name, "Free"), maxMembers: limit(plan.maxMembers), maxProjects: limit(plan.maxProjects) },
+    subscription: { status: nstr(sub.status), currentPeriodEnd: nstr(sub.currentPeriodEnd), cancelAtPeriodEnd: sub.cancelAtPeriodEnd === true, hasBillingAccount: sub.hasBillingAccount === true },
+  };
+}
+
+// ---- Client collaboration & attachments ----
+const authorType = (v: unknown): "CLIENT" | "STAFF" => (v === "CLIENT" ? "CLIENT" : "STAFF");
+export function mapProjectUpdate(raw: unknown): ProjectUpdate {
+  const r = rec(raw);
+  return { id: str(r.id), title: str(r.title), body: str(r.body), createdAt: str(r.createdAt), author: { name: str(rec(r.author).name, "Team") } };
+}
+export function mapProjectMessage(raw: unknown): ProjectMessage {
+  const r = rec(raw);
+  const a = rec(r.author);
+  return { id: str(r.id), content: str(r.content), createdAt: str(r.createdAt), author: { type: authorType(a.type), name: str(a.name, "Unknown") } };
+}
+export function mapSharedFile(raw: unknown): SharedFile {
+  const r = rec(raw);
+  const u = rec(r.uploadedBy);
+  return { id: str(r.id), originalFilename: str(r.originalFilename, "file"), url: str(r.url), mimeType: str(r.mimeType), sizeBytes: int(r.sizeBytes), createdAt: str(r.createdAt), uploadedBy: { type: authorType(u.type), name: str(u.name, "Unknown") } };
+}
+export function mapClientRequest(raw: unknown): ClientRequest {
+  const r = rec(raw);
+  const c = rec(r.contact);
+  return {
+    id: str(r.id), projectId: str(r.projectId), type: oneOf(REQUEST_TYPES, r.type, "QUESTION"), title: str(r.title), description: str(r.description),
+    status: oneOf(REQUEST_STATUSES, r.status, "OPEN"), resolutionNote: nstr(r.resolutionNote), createdAt: str(r.createdAt), updatedAt: str(r.updatedAt), resolvedAt: nstr(r.resolvedAt),
+    ...(str(c.id) ? { contact: { id: str(c.id), name: str(c.name), email: str(c.email) } } : {}),
+  };
+}
+export function mapAttachment(raw: unknown): TaskAttachment {
+  const r = rec(raw);
+  return { id: str(r.id), taskId: str(r.taskId), uploadedByMembershipId: str(r.uploadedByMembershipId), originalFilename: str(r.originalFilename, "file"), url: str(r.url), mimeType: str(r.mimeType), sizeBytes: int(r.sizeBytes), createdAt: str(r.createdAt) };
+}
+
+// ---- Client portal ----
+export function mapPortalContact(raw: unknown): PortalContact {
+  const r = rec(raw);
+  return { id: str(r.id), name: str(r.name), email: str(r.email), jobTitle: nstr(r.jobTitle), clientOrganizationName: str(r.clientOrganizationName), organizationName: str(r.organizationName) };
+}
+function mapPortalProgress(raw: unknown): PortalProgress {
+  const r = rec(raw);
+  const by = rec(r.byStatus);
+  const byStatus: PortalProgress["byStatus"] = {};
+  for (const s of TASK_STATUSES) if (num(by[s]) !== undefined) byStatus[s] = num(by[s]);
+  const total = num(r.totalTasks) ?? 0;
+  const done = num(r.completedTasks) ?? 0;
+  return { totalTasks: total, completedTasks: done, percentComplete: Math.min(100, Math.max(0, num(r.percentComplete) ?? (total ? Math.round((done / total) * 100) : 0))), byStatus };
+}
+export function mapPortalProject(raw: unknown): PortalProject {
+  const r = rec(raw);
+  return { id: str(r.id), name: str(r.name), description: nstr(r.description), status: oneOf(PROJECT_STATUSES, r.status, "PLANNING"), startDate: nstr(r.startDate), dueDate: nstr(r.dueDate), progress: mapPortalProgress(r.progress) };
+}
+export function mapPortalTask(raw: unknown): PortalTask {
+  const r = rec(raw);
+  return { id: str(r.id), title: str(r.title), description: nstr(r.description), status: oneOf(TASK_STATUSES, r.status, "TODO"), priority: oneOf(TASK_PRIORITIES, r.priority, "MEDIUM"), startDate: nstr(r.startDate), dueDate: nstr(r.dueDate) };
 }

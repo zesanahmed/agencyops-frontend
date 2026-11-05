@@ -103,6 +103,7 @@ export function LoginForm() {
           <p className="text-xs text-muted-foreground">Demo accounts activate once the backend seeds them and their credentials are set in the environment.</p>
         ) : null}
       </section>
+      <p className="text-center text-sm text-muted-foreground">Working with an agency as their client? <Link href="/client/login" className="font-medium text-primary hover:underline">Sign in to the client portal</Link></p>
     </div>
   );
 }

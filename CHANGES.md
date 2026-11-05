@@ -1,28 +1,30 @@
-# CHANGES — Phase J (account & security)
+# CHANGES — Phase L1 (client portal: sign-in, shell, projects)
 
-Builds on Phase I. Backend verified at `agencyops-api` `08f0b20`.
+Builds on Phase K2. Backend verified at `agencyops-api` `08f0b20`. **L2** adds the portal's messages, requests, files, invoices
+and the invoice payment flow.
 
-## New pages
-- `/forgot-password` and `/reset-password?token=` (single-use link; an invalid/expired token turns into "request a new link").
-- `/verify-email?token=` (the token is spent exactly once, even under React strict mode).
-- `/oauth/callback` (Google/GitHub round-trip landing page, with a message for each backend error code).
-- `/invitations/accept?token=`: the backend e-mails this path for organization invitations, but the app's page is
-  `/invite/[token]`; this redirects, so invitation e-mails no longer 404.
+## New
+- **Separate portal session.** `createTransport(realm)` now powers two independent API clients (staff and portal) with their own
+  token, refresh endpoint (`/portal/auth/refresh`) and store; a 401 on one never touches the other. Staff behaviour is unchanged.
+- **`/client/login`** (agency slug + e-mail + password, `?org=` prefill, one-click **Demo client login**), **`/portal/accept-invite`**
+  (the link staff/e-mail hand a contact: set password, signed in).
+- **Portal shell + gate**: calm header with tabs (Overview, Projects, Files, Invoices), sign out / sign out of all devices.
+- **`/client`** overview (greeting, active projects, tasks done/total, project cards), **`/client/projects`**, and
+  **`/client/projects/[id]`** with Overview (progress bar + per-status breakdown, dates), Tasks (status filter + paging in the
+  URL) and Updates tabs.
+- `src/proxy.ts` guards `/client/*` with the portal's own hint cookie; `/client/login` bounces signed-in contacts.
+- Staff login page links to the portal sign-in.
 
-## Changed
-- **Profile** is now a real account page: verified badge + resend, change password, active sessions (this device labelled,
-  sign out the others), sign out / sign out everywhere, delete account (type DELETE; password optional for OAuth-only users;
-  the backend's 409 "you still own an organization" is shown as-is).
-- **Login** gets "Forgot password?" and, when enabled, Google/GitHub buttons; **Register** gets the same buttons.
-- **Unverified-e-mail banner** under the top bar (soft nudge: the backend blocks nothing on it).
-- **Bug fix:** the password rule was 8–128; the backend allows 8–72 characters and ≤72 UTF-8 bytes. A 100-character password
-  used to pass the form and fail on the server. Now validated identically on every password form.
-- `api.delete` can carry a body (account deletion); `User` gains `emailVerifiedAt`; `.env.example` documents
-  `NEXT_PUBLIC_OAUTH_PROVIDERS`.
+## Contract notes
+- `FRONTEND_CONTRACT.md` §4 says the invoice payment-status query is `?sessionId=`; the backend code reads `session_id`. L2 follows the code.
+- Portal login needs the organization **slug**, but the invitation flow never gives the contact one (the contact payload only has the
+  organization's display name). Suggest to Claude-1: add `organizationSlug` to the portal contact (`/portal/auth/me`, login, accept-invite
+  responses) so the portal can remember it and pre-fill sign-in. Until then the field is a plain input with a hint, and the staff
+  invitation hand-off can append `?org=<slug>`.
 
 ## Tests
-333 -> 385 (account flows, schemas incl. the UTF-8 byte rule, account contract, session labels, OAuth buttons).
+543 -> 586 (portal transport isolation, portal API contract, session restore/redirect/logout, login and invitation
+forms, dashboard/projects/detail views, proxy realm rules).
 
-## Notes
-- OAuth only works once the backend has provider credentials and `API_PUBLIC_URL` equals this site's origin (see README).
-- Reset/verify e-mails are sent by the backend's Resend integration; demo users never receive e-mail.
+## Not covered
+Not run against a live server; the contact invitation e-mail/link flow depends on your backend's e-mail configuration.

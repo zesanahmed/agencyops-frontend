@@ -123,6 +123,36 @@ copy of the real backend and a real PostgreSQL.
   `/api/v1` proxy, so for the round-trip to stay first-party the backend's `API_PUBLIC_URL` must be this site's origin and the
   provider's redirect URI `<origin>/api/v1/auth/oauth/<provider>/callback`. The callback page (`/oauth/callback`) trades the
   refresh cookie for an access token exactly once. Not exercised against real provider credentials in this repo.
+- **Clients (staff side):** `/organizations/:id/clients` (+ `/:clientId` with Contacts and Projects tabs). Contacts are portal
+  users, not org members. Creating/re-inviting/enabling a contact returns `inviteToken` **only while the backend has no e-mail
+  delivery**; the UI then shows a copyable `/portal/accept-invite?token=` link, otherwise it says the invitation was e-mailed.
+  Deleting a client disables its contacts, removes their access and unlinks its projects (invoices stay). A project belongs to at
+  most one client (409 on a second link). Contacts see nothing until granted access per linked project.
+- **Invoices (staff side):** amounts are integer cents and the server recomputes totals (`subtotal - discount + tax`); the form
+  only previews them. Only DRAFT invoices are editable; `send` does **not** e-mail anyone, it makes the invoice visible in the
+  portal (and queues the PDF); a zero-total draft can't be sent (422); a paid invoice can't be voided (409). PDFs are rendered
+  by the backend **worker** (202 + later `pdfUrl`), so the page polls while waiting.
+- **Billing/payments:** the organization plan is OWNER-managed through Stripe Checkout/Portal (the browser leaves the app for the
+  Stripe URL). `/payment/success` polls `GET /billing` every 2 s for ~30 s and says "paid" only when the **server** reports
+  Pro; after the timeout it says "processing", never success. State changes only via the signed Stripe webhook. Test card
+  `4242 4242 4242 4242`.
+- **Client collaboration (staff side):** project workspace -> **Client** tab (Updates, Messages, Files, Requests; section in the URL)
+  and an org-wide inbox at `/organizations/:id/requests`. Read needs `client-portal:read` (all roles), writing needs
+  `client-portal:manage` (Owner/Manager). Messages are paged **oldest-first**, so the thread opens on the last page. Request
+  status/resolution note can be changed (`null` clears the note). Shared files from either side are listed with who uploaded them.
+- **Uploads:** multipart field `file`, allow-list and 10 MB limit mirrored from `upload.ts` (the server also checks the real file
+  signature and answers 400 "File content does not match its declared type"). `apiUpload` uses XMLHttpRequest for real progress
+  and cancel, with the same 401 -> refresh -> retry as other calls. Cloudinary must be configured on the backend (503 otherwise).
+- **Task attachments** live on the task page; list/upload/delete use `task:read` / `task:update`.
+- **Known backend gap:** task reads don't include `clientVisible`; only the visibility PATCH returns it. The task page therefore
+  sets visibility explicitly until the current value is known (see CHANGES.md).
+- **Client portal (a separate realm):** contacts are not org members. `/portal/*` has its own access token, its own refresh cookie
+  (`agencyops_refresh_token_client`, path `/api/v1/portal/auth`) and its own client-side hint cookie (`ao_portal_session`); a staff
+  session never opens the portal and vice versa (`src/proxy.ts`, `usePortalAuthStore`, `createTransport` realms in
+  `src/lib/api/client.ts`). Sign-in needs the agency's **organization slug** + e-mail + password; the invitation link
+  (`/portal/accept-invite?token=`) sets the password and signs the contact in. Every project route is gated server-side by a
+  per-project grant (a project without one answers 404). Tasks are only the ones staff marked client-visible, with no assignee,
+  comments or attachments. There is no portal password reset or change-password endpoint yet.
 - **Demo login:** the three buttons use the accounts created by the backend's `npm run seed` (`*@demo.agencyops.test`,
   password `DemoPass123!`); `NEXT_PUBLIC_DEMO_*` env vars override them.
 

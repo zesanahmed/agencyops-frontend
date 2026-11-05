@@ -43,8 +43,32 @@ describe("proxy route gate", () => {
   });
 
   it("leaves public routes and invitation links open to everyone", () => {
-    for (const p of ["/", "/about", "/services", "/pricing", "/contact", "/login", "/register", "/invite/abc123", "/payment/success", "/client"])
+    for (const p of ["/", "/about", "/services", "/pricing", "/contact", "/login", "/register", "/invite/abc123", "/payment/success", "/client/login", "/portal/accept-invite", "/invitations/accept"])
       expect(proxy(req(p)).headers.get("location")).toBeNull();
+  });
+
+  describe("client portal (its own realm, its own hint cookie)", () => {
+    it("sends anonymous visitors to /client/login with a return path", () => {
+      for (const p of ["/client", "/client/projects", "/client/projects/p1?tab=tasks", "/client/invoices"]) {
+        const res = proxy(req(p));
+        expect(res.status).toBe(307);
+        const url = new URL(location(res)!);
+        expect(url.pathname).toBe("/client/login");
+        expect(url.searchParams.get("next")).toBe(p);
+      }
+    });
+    it("a staff session does not open the portal, and a portal session does not open the staff app", () => {
+      expect(new URL(location(proxy(req("/client", "ao_session=1")))!).pathname).toBe("/client/login");
+      expect(new URL(location(proxy(req("/organizations", "ao_portal_session=1")))!).pathname).toBe("/login");
+    });
+    it("lets a portal session in and bounces it off the portal sign-in", () => {
+      expect(proxy(req("/client/projects", "ao_portal_session=1")).headers.get("location")).toBeNull();
+      expect(new URL(location(proxy(req("/client/login", "ao_portal_session=1")))!).pathname).toBe("/client");
+    });
+    it("does not match look-alike paths", () => {
+      expect(proxy(req("/clients-info")).headers.get("location")).toBeNull();
+      expect(proxy(req("/clientele")).headers.get("location")).toBeNull();
+    });
   });
 
   it("excludes API proxy, static assets and files from the matcher", () => {

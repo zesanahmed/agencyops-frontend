@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 const SESSION_FLAG = "ao_session";
+const PORTAL_SESSION_FLAG = "ao_portal_session";
+const PORTAL_LOGIN = "/client/login";
 const PROTECTED = ["/organizations", "/profile"];
 const AUTH_ONLY = ["/login", "/register"];
 
@@ -20,6 +22,22 @@ export function proxy(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = `?next=${encodeURIComponent(pathname + search)}`;
+    return NextResponse.redirect(url);
+  }
+
+  // The client portal is its own realm with its own hint cookie: a staff session never opens it, and vice versa.
+  const hasPortalSession = request.cookies.get(PORTAL_SESSION_FLAG)?.value === "1";
+  const inPortal = pathname === "/client" || pathname.startsWith("/client/");
+  if (inPortal && pathname !== PORTAL_LOGIN && !hasPortalSession) {
+    const url = request.nextUrl.clone();
+    url.pathname = PORTAL_LOGIN;
+    url.search = `?next=${encodeURIComponent(pathname + search)}`;
+    return NextResponse.redirect(url);
+  }
+  if (pathname === PORTAL_LOGIN && hasPortalSession) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/client";
+    url.search = "";
     return NextResponse.redirect(url);
   }
 
