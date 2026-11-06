@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { activityApi, authApi, commentApi, invitationApi, memberApi, notificationApi, orgApi, projectApi, sprintApi, taskApi, teamApi } from "./services";
+import { activityApi, attachmentApi, authApi, billingApi, clientApi, collabApi, commentApi, invoiceApi, invitationApi, memberApi, notificationApi, orgApi, projectApi, sprintApi, taskApi, teamApi } from "./services";
 import { invitationStatus } from "@/types/domain";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -267,5 +267,156 @@ describe("account & security contract", () => {
     expect(call(spy, 1).url).toMatch(/\/auth\/account$/);
     expect(JSON.parse(call(spy, 1).init.body as string)).toEqual({ password: "my-password" });
     expect(call(spy, 2).init.body).toBeUndefined();
+  });
+});
+
+/** Clients, invoices and billing (agencyops-api client/invoice/billing modules at 08f0b20). */
+describe("clients, invoices and billing contract", () => {
+  beforeEach(() => useAuthStore.setState({ accessToken: "t", status: "authenticated" }));
+  afterEach(() => vi.restoreAllMocks());
+  const req = (spy: ReturnType<typeof vi.spyOn>, i = 0) => ({ url: new URL(String(spy.mock.calls[i][0]), "http://x"), init: spy.mock.calls[i][1] as RequestInit });
+  const client = { id: "c1", name: "Brightline", website: "https://b.io", notes: null, createdAt: "2026-10-01T00:00:00Z", updatedAt: "2026-10-01T00:00:00Z" };
+  const contact = { id: "k1", clientOrganizationId: "c1", name: "Dana", email: "dana@b.io", jobTitle: null, status: "INVITED", lastLoginAt: null, createdAt: "" };
+
+  it("clients: list unwraps data.clients with search/sort params; get unwraps data.client", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(ok({ clients: [client], pagination })).mockResolvedValueOnce(ok({ client }));
+    const r = await clientApi.list("o1", { page: 2, limit: 12, search: "bright", sortBy: "name", sortOrder: "asc" });
+    expect(r.items[0].name).toBe("Brightline");
+    const q = req(spy).url.searchParams;
+    expect([req(spy).url.pathname, q.get("page"), q.get("search"), q.get("sortBy"), q.get("sortOrder")]).toEqual(["/api/v1/organizations/o1/clients", "2", "bright", "name", "asc"]);
+    expect((await clientApi.get("o1", "c1")).website).toBe("https://b.io");
+  });
+
+  it("clients: update can clear website/notes with null", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(ok({ client }));
+    await clientApi.update("o1", "c1", { name: "B", website: null, notes: null });
+    expect(req(spy).init.method).toBe("PATCH");
+    expect(JSON.parse(req(spy).init.body as string)).toEqual({ name: "B", website: null, notes: null });
+  });
+
+  it("contacts: create returns the invite token only when the server exposes it", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(ok({ contact, inviteToken: "tok-abc" }, 201)).mockResolvedValueOnce(ok({ contact }, 201));
+    expect(await clientApi.createContact("o1", "c1", { name: "Dana", email: "dana@b.io" })).toMatchObject({ inviteToken: "tok-abc", contact: { status: "INVITED" } });
+    expect((await clientApi.createContact("o1", "c1", { name: "Dana", email: "dana@b.io" })).inviteToken).toBeNull();
+  });
+
+  it("contacts: reinvite/enable POST, disable DELETE, access grant/revoke use the project id", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => ok({ contact }));
+    await clientApi.reinvite("o1", "c1", "k1");
+    await clientApi.enableContact("o1", "c1", "k1");
+    await clientApi.disableContact("o1", "c1", "k1");
+    await clientApi.grantAccess("o1", "c1", "k1", "p1");
+    await clientApi.revokeAccess("o1", "c1", "k1", "p1");
+    const calls = [0, 1, 2, 3, 4].map((i) => `${req(spy, i).init.method} ${req(spy, i).url.pathname.replace("/api/v1/organizations/o1/clients/c1/", "")}`);
+    expect(calls).toEqual(["POST contacts/k1/reinvite", "POST contacts/k1/enable", "DELETE contacts/k1", "POST contacts/k1/access", "DELETE contacts/k1/access/p1"]);
+    expect(JSON.parse(req(spy, 3).init.body as string)).toEqual({ projectId: "p1" });
+  });
+
+  it("client projects and access lists are mapped", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(ok({ projects: [{ id: "p1", name: "Site", slug: "site", status: "ACTIVE" }] }))
+      .mockResolvedValueOnce(ok({ access: [{ id: "a1", clientContactId: "k1", projectId: "p1", createdAt: "" }] }));
+    expect((await clientApi.projects("o1", "c1"))[0]).toEqual({ id: "p1", name: "Site", slug: "site", status: "ACTIVE" });
+    expect((await clientApi.access("o1", "c1", "k1"))[0].projectId).toBe("p1");
+  });
+
+  const invoice = { id: "i1", number: "INV-0001", status: "OPEN", clientId: "c1", projectId: null, issueDate: "", dueDate: "", currency: "usd", subtotalCents: 10000, taxCents: 0, discountCents: 0, totalCents: 10000, notes: null, sentAt: null, paidAt: null, voidedAt: null, pdfUrl: null, pdfGeneratedAt: null, createdAt: "",
+    items: [{ description: "Design", quantity: 2, unitAmountCents: 5000, amountCents: 10000 }], payments: [{ id: "pay1", amountCents: 10000, currency: "usd", status: "FAILED", failureReason: "Card declined", paidAt: null, createdAt: "" }] };
+
+  it("invoices: the response IS the invoice (no wrapper); list uses data.invoices and the filters", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(ok(invoice)).mockResolvedValueOnce(ok({ invoices: [invoice], pagination }));
+    const one = await invoiceApi.get("o1", "i1");
+    expect(one).toMatchObject({ number: "INV-0001", totalCents: 10000, items: [{ amountCents: 10000 }], payments: [{ status: "FAILED", failureReason: "Card declined" }] });
+    await invoiceApi.list("o1", { status: "OPEN", clientId: "c1", page: 3 });
+    const q = req(spy, 1).url.searchParams;
+    expect([q.get("status"), q.get("clientId"), q.get("page")]).toEqual(["OPEN", "c1", "3"]);
+  });
+
+  it("invoices: create sends cents and ISO dates; send/void/pdf hit their endpoints", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => ok(invoice, 201));
+    await invoiceApi.create("o1", { clientId: "c1", issueDate: "2026-10-01T00:00:00.000Z", dueDate: "2026-10-15T00:00:00.000Z", currency: "usd", taxCents: 0, discountCents: 0, items: [{ description: "Design", quantity: 2, unitAmountCents: 5000 }] });
+    await invoiceApi.send("o1", "i1"); await invoiceApi.void("o1", "i1"); await invoiceApi.requestPdf("o1", "i1");
+    expect(JSON.parse(req(spy, 0).init.body as string)).toMatchObject({ clientId: "c1", items: [{ unitAmountCents: 5000 }] });
+    expect([1, 2, 3].map((i) => `${req(spy, i).init.method} ${req(spy, i).url.pathname.split("/").slice(-1)[0]}`)).toEqual(["POST send", "POST void", "POST pdf"]);
+  });
+
+  it("billing: maps plan + subscription; checkout/portal return the Stripe URL and reject a response without one", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(ok({ plan: { code: "PRO", name: "Pro", maxMembers: null, maxProjects: null }, subscription: { status: "active", currentPeriodEnd: "2026-11-01T00:00:00Z", cancelAtPeriodEnd: true, hasBillingAccount: true } }))
+      .mockResolvedValueOnce(ok({ url: "https://checkout.stripe.com/c/pay/cs_test" }, 201))
+      .mockResolvedValueOnce(ok({}, 201));
+    const b = await billingApi.get("o1");
+    expect(b.plan).toEqual({ code: "PRO", name: "Pro", maxMembers: null, maxProjects: null });
+    expect(b.subscription).toMatchObject({ status: "active", cancelAtPeriodEnd: true, hasBillingAccount: true });
+    expect(await billingApi.checkout("o1")).toBe("https://checkout.stripe.com/c/pay/cs_test");
+    await expect(billingApi.portal("o1")).rejects.toThrow();
+  });
+});
+
+/** Client collaboration (staff) and task attachments (agencyops-api client-collaboration / attachment modules at 08f0b20). */
+describe("collaboration & attachments contract", () => {
+  beforeEach(() => useAuthStore.setState({ accessToken: "t", status: "authenticated" }));
+  afterEach(() => vi.restoreAllMocks());
+  const req = (spy: ReturnType<typeof vi.spyOn>, i = 0) => ({ url: new URL(String(spy.mock.calls[i][0]), "http://x"), init: spy.mock.calls[i][1] as RequestInit });
+
+  it("updates/messages/files: list keys, nested author shapes and the project-scoped paths", async () => {
+    const spy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(ok({ updates: [{ id: "u1", title: "T", body: "B", createdAt: "", author: { name: "Arif" } }], pagination }))
+      .mockResolvedValueOnce(ok({ messages: [{ id: "m1", content: "hi", createdAt: "", author: { type: "CLIENT", name: "Dana" } }, { id: "m2", content: "yo", createdAt: "", author: { type: "STAFF", name: "Arif" } }], pagination }))
+      .mockResolvedValueOnce(ok({ files: [{ id: "f1", originalFilename: "a.pdf", url: "https://x/a.pdf", mimeType: "application/pdf", sizeBytes: 10, createdAt: "", uploadedBy: { type: "CLIENT", name: "Dana" } }], pagination }));
+    expect((await collabApi.updates("o1", "p1", { page: 2, limit: 10 })).items[0].author.name).toBe("Arif");
+    const msgs = (await collabApi.messages("o1", "p1")).items;
+    expect(msgs.map((m) => m.author.type)).toEqual(["CLIENT", "STAFF"]);
+    expect((await collabApi.files("o1", "p1")).items[0]).toMatchObject({ sizeBytes: 10, uploadedBy: { type: "CLIENT" } });
+    expect([0, 1, 2].map((i) => req(spy, i).url.pathname)).toEqual(["/api/v1/organizations/o1/client-portal/projects/p1/updates", "/api/v1/organizations/o1/client-portal/projects/p1/messages", "/api/v1/organizations/o1/client-portal/projects/p1/files"]);
+    expect(req(spy, 0).url.searchParams.get("page")).toBe("2");
+  });
+
+  it("post/delete use the singular response keys and DELETE", async () => {
+    const spy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(ok({ update: { id: "u1", title: "T", body: "B", createdAt: "", author: { name: "A" } } }, 201))
+      .mockResolvedValueOnce(ok({ message: { id: "m1", content: "hi", createdAt: "", author: { type: "STAFF", name: "A" } } }, 201))
+      .mockImplementation(async () => ok(null));
+    expect((await collabApi.postUpdate("o1", "p1", { title: "T", body: "B" })).id).toBe("u1");
+    expect((await collabApi.postMessage("o1", "p1", "hi")).author.type).toBe("STAFF");
+    expect(JSON.parse(req(spy, 1).init.body as string)).toEqual({ content: "hi" });
+    await collabApi.deleteUpdate("o1", "p1", "u1"); await collabApi.deleteMessage("o1", "p1", "m1"); await collabApi.deleteFile("o1", "p1", "f1");
+    expect([2, 3, 4].map((i) => `${req(spy, i).init.method} ${req(spy, i).url.pathname.split("/").slice(-2).join("/")}`)).toEqual(["DELETE updates/u1", "DELETE messages/m1", "DELETE files/f1"]);
+  });
+
+  it("requests: org-wide inbox with filters; PATCH sends only what's given (null clears the note)", async () => {
+    const r = { id: "r1", projectId: "p1", type: "ISSUE", title: "Bug", description: "d", status: "OPEN", resolutionNote: null, createdAt: "", updatedAt: "", resolvedAt: null, contact: { id: "k1", name: "Dana", email: "d@b.io" }, handledByMembershipId: null };
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(ok({ requests: [r], pagination })).mockResolvedValueOnce(ok({ request: { ...r, status: "RESOLVED" } }));
+    const list = await collabApi.requests("o1", { status: "OPEN", type: "ISSUE", projectId: "p1", page: 2 });
+    expect(list.items[0]).toMatchObject({ type: "ISSUE", contact: { name: "Dana", email: "d@b.io" } });
+    const q = req(spy).url.searchParams;
+    expect([req(spy).url.pathname, q.get("status"), q.get("type"), q.get("projectId"), q.get("page")]).toEqual(["/api/v1/organizations/o1/client-portal/requests", "OPEN", "ISSUE", "p1", "2"]);
+    await collabApi.updateRequest("o1", "r1", { resolutionNote: null });
+    expect(req(spy, 1).init.method).toBe("PATCH");
+    expect(JSON.parse(req(spy, 1).init.body as string)).toEqual({ resolutionNote: null });
+  });
+
+  it("task visibility returns the value the server confirms", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(ok({ task: { id: "t1", clientVisible: true } }));
+    expect(await collabApi.setTaskVisibility("o1", "p1", "t1", true)).toBe(true);
+    expect(req(spy).url.pathname).toBe("/api/v1/organizations/o1/client-portal/projects/p1/tasks/t1/visibility");
+    expect(JSON.parse(req(spy).init.body as string)).toEqual({ clientVisible: true });
+  });
+
+  it("task attachments: list is a plain array under `attachments`; delete targets the id", async () => {
+    const spy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(ok({ attachments: [{ id: "a1", taskId: "t1", uploadedByMembershipId: "m1", originalFilename: "w.png", url: "https://x/w.png", mimeType: "image/png", sizeBytes: 99, createdAt: "" }] }))
+      .mockResolvedValueOnce(ok(null));
+    expect((await attachmentApi.list("o1", "p1", "t1"))[0]).toMatchObject({ originalFilename: "w.png", sizeBytes: 99 });
+    expect(req(spy).url.pathname).toBe("/api/v1/organizations/o1/projects/p1/tasks/t1/attachments");
+    await attachmentApi.remove("o1", "p1", "t1", "a1");
+    expect([req(spy, 1).init.method, req(spy, 1).url.pathname.endsWith("/attachments/a1")]).toEqual(["DELETE", true]);
+  });
+
+  it("tasks map clientVisible only when the backend sends it", async () => {
+    const t = { id: "t1", projectId: "p1", title: "x", status: "TODO", priority: "LOW" };
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(ok({ task: t })).mockResolvedValueOnce(ok({ task: { ...t, clientVisible: false } }));
+    expect("clientVisible" in (await taskApi.get("o1", "p1", "t1"))).toBe(false);
+    expect((await taskApi.get("o1", "p1", "t1")).clientVisible).toBe(false);
   });
 });

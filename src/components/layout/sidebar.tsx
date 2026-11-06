@@ -3,15 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
-import { Activity, Bell, FolderKanban, LayoutDashboard, ListChecks, Settings, UsersRound, UserSquare2 } from "lucide-react";
+import { Activity, Bell, Building2, FileText, Inbox, FolderKanban, LayoutDashboard, ListChecks, Settings, UsersRound, UserSquare2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { notificationApi } from "@/lib/api/services";
-import { qk, useOrganization } from "@/features/organizations/hooks";
+import { qk, useOrganization, useOrgMembership } from "@/features/organizations/hooks";
+import { canWith, type Permission } from "@/lib/rbac";
 import { OrgSwitcher } from "./org-switcher";
 import { Logo } from "@/components/shared/logo";
 import { cn } from "@/lib/utils";
 
-interface NavItem { href: string; label: string; icon: LucideIcon; exact?: boolean; badge?: number }
+interface NavItem { href: string; label: string; icon: LucideIcon; exact?: boolean; badge?: number; permission?: Permission }
 interface NavGroup { label: string; items: NavItem[] }
 
 export function SidebarNav({ organizationId, onNavigate }: { organizationId: string; onNavigate?: () => void }) {
@@ -25,8 +26,9 @@ export function SidebarNav({ organizationId, onNavigate }: { organizationId: str
     refetchInterval: 60_000,
   });
   const unreadCount = unread.data?.meta.total ?? 0;
+  const { role, permissions } = useOrgMembership(organizationId);
 
-  const groups: NavGroup[] = [
+  const groups: NavGroup[] = ([
     { label: "Workspace", items: [
       { href: base, label: "Overview", icon: LayoutDashboard, exact: true },
       { href: `${base}/my-work`, label: "My work", icon: ListChecks },
@@ -37,11 +39,19 @@ export function SidebarNav({ organizationId, onNavigate }: { organizationId: str
       { href: `${base}/teams`, label: "Teams", icon: UserSquare2 },
       { href: `${base}/members`, label: "Members", icon: UsersRound },
     ]},
+    { label: "Business", items: [
+      { href: `${base}/clients`, label: "Clients", icon: Building2, permission: "client:read" },
+      { href: `${base}/requests`, label: "Client requests", icon: Inbox, permission: "client-portal:read" },
+      { href: `${base}/invoices`, label: "Invoices", icon: FileText, permission: "invoice:read" },
+    ]},
     { label: "Inbox", items: [
       { href: `${base}/notifications`, label: "Notifications", icon: Bell, badge: unreadCount },
       { href: `${base}/settings`, label: "Settings", icon: Settings },
     ]},
-  ];
+  ] as NavGroup[])
+    // Hide what the caller can't use (UX only: the server enforces). A group with nothing left disappears.
+    .map((g) => ({ ...g, items: g.items.filter((i) => !i.permission || canWith(role, permissions, i.permission)) }))
+    .filter((g) => g.items.length > 0);
 
   return (
     <div className="flex h-full flex-col gap-5 p-3">

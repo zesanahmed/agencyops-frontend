@@ -25,12 +25,13 @@ export function notificationKind(type: string): NotificationKind {
 
 /**
  * Where a notification leads (FRONTEND_CONTRACT §3.7). Null when the target has no internal page, or its ids are missing
- * (older notifications written before `data` existed). Invoice targets get a page in the billing phase.
+ * (older notifications written before `data` existed). Invoice notifications lead to the invoice page.
  */
 export function notificationHref(organizationId: string, n: Pick<AppNotification, "type" | "data">): string | null {
   const d = n.data;
   if (!d) return null;
   const base = `/organizations/${organizationId}`;
+  if (d.invoiceId) return `${base}/invoices/${d.invoiceId}`;
   if (d.projectId && d.taskId) return `${base}/projects/${d.projectId}/tasks/${d.taskId}`;
   if (d.projectId && d.sprintId) return `${base}/projects/${d.projectId}?tab=sprints`;
   if (d.projectId) return `${base}/projects/${d.projectId}`;

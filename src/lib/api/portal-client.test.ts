@@ -81,3 +81,43 @@ describe("portal API contract (portal.routes.ts / portal.auth.controller.ts at 0
     expect((await portalProjectsApi.updates("p1")).items[0].author.name).toBe("Arif");
   });
 });
+
+describe("portal L2 contract (collaboration + invoices)", () => {
+  const meta = { page: 1, limit: 20, total: 1, totalPages: 1 };
+  it("messages, requests and files are project-scoped under /portal/projects/:id", async () => {
+    const spy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(ok({ messages: [{ id: "m1", content: "hi", createdAt: "", author: { type: "STAFF", name: "A" } }], pagination: meta }))
+      .mockResolvedValueOnce(ok({ message: { id: "m2", content: "yo", createdAt: "", author: { type: "CLIENT", name: "Dana" } } }, 201))
+      .mockResolvedValueOnce(ok({ requests: [{ id: "r1", projectId: "p1", type: "ISSUE", title: "T", description: "D", status: "IN_REVIEW", resolutionNote: "On it", createdAt: "", updatedAt: "", resolvedAt: null }], pagination: meta }))
+      .mockResolvedValueOnce(ok({ request: { id: "r2", projectId: "p1", type: "QUESTION", title: "T", description: "D", status: "OPEN", resolutionNote: null, createdAt: "", updatedAt: "", resolvedAt: null } }, 201))
+      .mockResolvedValueOnce(ok({ files: [{ id: "f1", originalFilename: "a.pdf", url: "https://x/a.pdf", mimeType: "application/pdf", sizeBytes: 9, createdAt: "", uploadedBy: { type: "STAFF", name: "A" } }], pagination: meta }));
+    expect((await portalProjectsApi.messages("p1")).items[0].author.type).toBe("STAFF");
+    expect((await portalProjectsApi.postMessage("p1", "yo")).author.type).toBe("CLIENT");
+    const reqs = await portalProjectsApi.requests("p1");
+    expect(reqs.items[0]).toMatchObject({ status: "IN_REVIEW", resolutionNote: "On it" });
+    expect("contact" in reqs.items[0]).toBe(false); // a contact never sees who else asked
+    await portalProjectsApi.createRequest("p1", { type: "QUESTION", title: "T", description: "D" });
+    expect(JSON.parse(call(spy, 3).init.body as string)).toEqual({ type: "QUESTION", title: "T", description: "D" });
+    expect((await portalProjectsApi.files("p1")).items[0].uploadedBy.type).toBe("STAFF");
+    expect([0, 1, 2, 3, 4].map((i) => call(spy, i).url.pathname.replace("/api/v1/portal/projects/p1/", ""))).toEqual(["messages", "messages", "requests", "requests", "files"]);
+  });
+  it("invoices: list, get (flat invoice), checkout URL and payment status with `session_id`", async () => {
+    const invoice = { id: "i1", number: "INV-0001", status: "OPEN", projectId: null, issueDate: "", dueDate: "", currency: "usd", subtotalCents: 100, taxCents: 0, discountCents: 0, totalCents: 100, notes: null, sentAt: null, paidAt: null, pdfUrl: null, items: [] };
+    const spy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(ok({ invoices: [invoice], pagination: meta }))
+      .mockResolvedValueOnce(ok(invoice))
+      .mockResolvedValueOnce(ok({ url: "https://checkout.stripe.com/c/pay/cs_1" }, 201))
+      .mockResolvedValueOnce(ok({ invoiceStatus: "OPEN", confirmed: false, payment: { status: "FAILED", failureReason: "Card declined", paidAt: null } }))
+      .mockResolvedValueOnce(ok({ invoiceStatus: "PAID", confirmed: true, payment: null }));
+    const { portalInvoicesApi } = await import("./services");
+    expect((await portalInvoicesApi.list({ page: 2 })).items[0].number).toBe("INV-0001");
+    expect((await portalInvoicesApi.get("i1")).totalCents).toBe(100);
+    expect(await portalInvoicesApi.checkout("i1")).toBe("https://checkout.stripe.com/c/pay/cs_1");
+    const failed = await portalInvoicesApi.paymentStatus("i1", "cs_1");
+    expect(failed).toEqual({ invoiceStatus: "OPEN", confirmed: false, payment: { status: "FAILED", failureReason: "Card declined", paidAt: null } });
+    expect(call(spy, 3).url.searchParams.get("session_id")).toBe("cs_1");
+    expect(call(spy, 3).url.searchParams.has("sessionId")).toBe(false);
+    expect(await portalInvoicesApi.paymentStatus("i1")).toMatchObject({ confirmed: true, payment: null });
+    expect(call(spy, 4).url.searchParams.has("session_id")).toBe(false);
+  });
+});

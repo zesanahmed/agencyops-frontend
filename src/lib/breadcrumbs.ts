@@ -2,7 +2,7 @@ export interface Crumb { label: string; href?: string }
 
 const SEGMENT_LABEL: Record<string, string> = {
   "my-work": "My work", projects: "Projects", teams: "Teams", members: "Members",
-  notifications: "Notifications", settings: "Settings", tasks: "Tasks", activity: "Activity",
+  notifications: "Notifications", settings: "Settings", tasks: "Tasks", activity: "Activity", clients: "Clients", invoices: "Invoices", requests: "Client requests", new: "New", edit: "Edit",
 };
 
 /**
@@ -28,5 +28,11 @@ export function buildCrumbs(pathname: string, names: { org?: string; project?: s
     if (rest[2] === "tasks" && rest[3]) crumbs.push({ label: "Task" });
   }
   if (section === "teams" && rest[1]) crumbs.push({ label: names.team ?? "Team" });
+  if (section === "clients" && rest[1]) crumbs.push({ label: "Client" });
+  if (section === "invoices" && rest[1]) {
+    const invoiceHref = `${base}/invoices/${rest[1]}`;
+    if (rest[1] === "new") crumbs.push({ label: "New invoice" });
+    else { crumbs.push({ label: "Invoice", href: rest[2] ? invoiceHref : undefined }); if (rest[2] === "edit") crumbs.push({ label: "Edit" }); }
+  }
   return crumbs;
 }

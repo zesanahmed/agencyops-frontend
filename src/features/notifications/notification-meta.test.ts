@@ -43,10 +43,13 @@ describe("notificationHref (FRONTEND_CONTRACT §3.7)", () => {
     expect(notificationHref("o1", { type: "SPRINT_STARTED", data: { projectId: "p1", sprintId: "s1" } })).toBe("/organizations/o1/projects/p1?tab=sprints");
     expect(notificationHref("o1", { type: "CLIENT_MESSAGE", data: { projectId: "p1", messageId: "m1" } })).toBe("/organizations/o1/projects/p1");
   });
-  it("has no link for old notifications without data, or for invoice targets (no internal page yet)", () => {
+  it("leads invoice notifications to the invoice", () => {
+    expect(notificationHref("o1", { type: "INVOICE_PAID", data: { invoiceId: "i1" } })).toBe("/organizations/o1/invoices/i1");
+    expect(notificationHref("o1", { type: "INVOICE_PAYMENT_ATTENTION", data: { invoiceId: "i2" } })).toBe("/organizations/o1/invoices/i2");
+  });
+  it("has no link for old notifications without data", () => {
     expect(notificationHref("o1", { type: "MENTION", data: null })).toBeNull();
     expect(notificationHref("o1", { type: "MENTION" })).toBeNull();
-    expect(notificationHref("o1", { type: "INVOICE_PAID", data: { invoiceId: "i1" } })).toBeNull();
   });
   it("knows every type the backend sends", () => {
     for (const t of ["MENTION", "TASK_ASSIGNED", "TASK_STATUS_CHANGED", "SPRINT_STARTED", "CLIENT_MESSAGE", "CLIENT_REQUEST", "CLIENT_FILE", "INVOICE_PAID", "INVOICE_PAYMENT_ATTENTION"]) {

@@ -14,9 +14,12 @@ import { useUrlState } from "@/hooks/use-url-state";
 import { ApiError } from "@/lib/api/errors";
 import { formatCalendarDate, formatDateTime } from "@/lib/format";
 import { usePortalProject, usePortalTasks, usePortalUpdates } from "./hooks";
+import { PortalFiles } from "./portal-files";
+import { PortalMessages } from "./portal-messages";
+import { PortalRequests } from "./portal-requests";
 import { ProgressBar } from "./progress-bar";
 
-const TABS = ["overview", "tasks", "updates"] as const;
+const TABS = ["overview", "tasks", "updates", "messages", "files", "requests"] as const;
 type Tab = (typeof TABS)[number];
 
 export function PortalProjectDetail({ projectId }: { projectId: string }) {
@@ -38,10 +41,13 @@ export function PortalProjectDetail({ projectId }: { projectId: string }) {
       <Link href="/client/projects" className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" aria-hidden /> All projects</Link>
       <PageHeader title={p.name} description={p.description ?? undefined} actions={<ProjectStatusBadge status={p.status} />} />
       <Tabs value={tab} onValueChange={(v) => set({ tab: v === "overview" ? "" : v, status: "", page: "" })}>
-        <TabsList><TabsTrigger value="overview">Overview</TabsTrigger><TabsTrigger value="tasks">Tasks</TabsTrigger><TabsTrigger value="updates">Updates</TabsTrigger></TabsList>
+        <TabsList><TabsTrigger value="overview">Overview</TabsTrigger><TabsTrigger value="tasks">Tasks</TabsTrigger><TabsTrigger value="updates">Updates</TabsTrigger><TabsTrigger value="messages">Messages</TabsTrigger><TabsTrigger value="files">Files</TabsTrigger><TabsTrigger value="requests">Requests</TabsTrigger></TabsList>
         <TabsContent value="overview"><Overview projectId={projectId} /></TabsContent>
         <TabsContent value="tasks"><TasksTab projectId={projectId} /></TabsContent>
         <TabsContent value="updates"><UpdatesTab projectId={projectId} /></TabsContent>
+        <TabsContent value="messages"><PortalMessages projectId={projectId} /></TabsContent>
+        <TabsContent value="files"><PortalFiles projectId={projectId} /></TabsContent>
+        <TabsContent value="requests"><PortalRequests projectId={projectId} /></TabsContent>
       </Tabs>
     </>
   );

@@ -1,30 +1,25 @@
-# CHANGES — Phase L1 (client portal: sign-in, shell, projects)
+# CHANGES — Phase L2 (client portal: collaboration, files, invoices, payment)
 
-Builds on Phase K2. Backend verified at `agencyops-api` `08f0b20`. **L2** adds the portal's messages, requests, files, invoices
-and the invoice payment flow.
+Builds on Phase L1. Backend verified at `agencyops-api` `08f0b20`.
 
-## New
-- **Separate portal session.** `createTransport(realm)` now powers two independent API clients (staff and portal) with their own
-  token, refresh endpoint (`/portal/auth/refresh`) and store; a 401 on one never touches the other. Staff behaviour is unchanged.
-- **`/client/login`** (agency slug + e-mail + password, `?org=` prefill, one-click **Demo client login**), **`/portal/accept-invite`**
-  (the link staff/e-mail hand a contact: set password, signed in).
-- **Portal shell + gate**: calm header with tabs (Overview, Projects, Files, Invoices), sign out / sign out of all devices.
-- **`/client`** overview (greeting, active projects, tasks done/total, project cards), **`/client/projects`**, and
-  **`/client/projects/[id]`** with Overview (progress bar + per-status breakdown, dates), Tasks (status filter + paging in the
-  URL) and Updates tabs.
-- `src/proxy.ts` guards `/client/*` with the portal's own hint cookie; `/client/login` bounces signed-in contacts.
-- Staff login page links to the portal sign-in.
+## New (all under the client portal)
+- **Project page tabs:** Messages (thread, newest page first, "You" for the contact's own), Files (shared list + uploader with
+  preview/progress/cancel; contacts can't delete), Requests (their own requests with status and the agency's reply; "New request"
+  form with type, title, details).
+- **`/client/files`**: pick a project (`?project=`), then the same files list/uploader.
+- **`/client/invoices`** and **`/client/invoices/[id]`**: list, line items, totals, PDF link when ready, **Pay** (Stripe Checkout).
+  PAID / VOID can't be paid.
+- **Overview** flags invoices awaiting payment (count and total, when they share a currency).
+- **`/payment/success?type=invoice`** now confirms against the server (polling, FAILED reason + retry, CANCELED, voided,
+  30 s "processing" fallback, sign-in prompt when signed out). It runs inside its own portal session provider since the page
+  lives outside `/client`.
 
 ## Contract notes
-- `FRONTEND_CONTRACT.md` §4 says the invoice payment-status query is `?sessionId=`; the backend code reads `session_id`. L2 follows the code.
-- Portal login needs the organization **slug**, but the invitation flow never gives the contact one (the contact payload only has the
-  organization's display name). Suggest to Claude-1: add `organizationSlug` to the portal contact (`/portal/auth/me`, login, accept-invite
-  responses) so the portal can remember it and pre-fill sign-in. Until then the field is a plain input with a hint, and the staff
-  invitation hand-off can append `?org=<slug>`.
+- Payment-status query is `session_id` in the backend code (FRONTEND_CONTRACT §4 says `sessionId`); the code wins.
 
 ## Tests
-543 -> 586 (portal transport isolation, portal API contract, session restore/redirect/logout, login and invitation
-forms, dashboard/projects/detail views, proxy realm rules).
+586 -> 614 (portal messages/requests/files/invoices, invoice payment confirmation states, L2 contract tests).
 
 ## Not covered
-Not run against a live server; the contact invitation e-mail/link flow depends on your backend's e-mail configuration.
+Stripe Checkout/webhook, Cloudinary uploads and e-mail were not run against live services; everything is tested against mocked
+responses that follow the backend code. The portal path needs your Stripe test keys, the webhook listener and the worker.

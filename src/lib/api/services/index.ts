@@ -273,4 +273,4 @@ export const activityApi = {
 
 export type { Organization, Membership, Invitation, Team, Project, Sprint, Role };
 
-export { portalAuthApi, portalProjectsApi, type PortalAuthResult } from "./portal";
+export { portalAuthApi, portalProjectsApi, portalInvoicesApi, type PortalAuthResult, type PortalPaymentStatus } from "./portal";

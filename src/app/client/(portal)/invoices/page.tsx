@@ -1,9 +1,15 @@
 import type { Metadata } from "next";
-import { Receipt } from "lucide-react";
-import { PendingFeature } from "@/components/client/pending-feature";
+import { Suspense } from "react";
+import { PageHeader } from "@/components/shared/page-header";
+import { PortalInvoicesView } from "@/features/portal/portal-invoices-view";
 
 export const metadata: Metadata = { title: "Invoices · Client portal", robots: { index: false } };
 
-export default function Page() {
-  return <PendingFeature icon={Receipt} title="Invoices" description="Billing history and payments." summary="Invoices and card payment (Stripe, test mode first) will appear here once billing is released. Payment status will always come from the server, never from the browser redirect." plans={["Invoice list with server-confirmed payment state","Downloadable PDF invoices"]} />;
+export default function PortalInvoicesPage() {
+  return (
+    <>
+      <PageHeader title="Invoices" description="What your agency has billed you, and what's left to pay." />
+      <Suspense><PortalInvoicesView /></Suspense>
+    </>
+  );
 }

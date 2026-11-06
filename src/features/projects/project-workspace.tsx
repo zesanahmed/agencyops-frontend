@@ -7,6 +7,7 @@ import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ProjectClientTab } from "@/features/client-portal/project-client-tab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ErrorState } from "@/components/shared/error-state";
@@ -24,7 +25,7 @@ import { ProjectPeople } from "./project-people";
 import { ProjectScheduleBadge } from "./project-schedule-badge";
 import { ProjectTeamsPanel } from "./project-teams-panel";
 
-const TABS = ["overview", "tasks", "sprints", "teams", "people"] as const;
+const TABS = ["overview", "tasks", "sprints", "teams", "people", "client"] as const;
 type Tab = (typeof TABS)[number];
 const isTab = (v: string): v is Tab => (TABS as readonly string[]).includes(v);
 
@@ -38,9 +39,9 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
   const [editing, setEditing] = useState(false);
   const { get, set } = useUrlState();
   const tabParam = get("tab", "overview");
-  const tab: Tab = isTab(tabParam) ? tabParam : "overview";
+  const tab: Tab = isTab(tabParam) && (tabParam !== "client" || can("client-portal:read")) ? tabParam : "overview";
   // The active tab lives in the URL (?tab=) so a view can be shared. Switching tabs drops the other tab's list filters.
-  const openTab = (next: string) => set({ tab: next === "overview" ? "" : next, status: "", priority: "", search: "", sprint: "", assignee: "", sort: "", page: "" });
+  const openTab = (next: string) => set({ tab: next === "overview" ? "" : next, status: "", priority: "", search: "", sprint: "", assignee: "", sort: "", page: "", section: "", type: "" });
 
   if (isLoading) return <div className="space-y-4"><Skeleton className="h-10 w-72" /><Skeleton className="h-10 w-full" /><Skeleton className="h-64" /></div>;
   if (isError || !project) return <ErrorState error={error} onRetry={() => refetch()} title="Couldn't load this project" />;
@@ -68,12 +69,14 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
           <TabsTrigger value="sprints">Sprints</TabsTrigger>
           <TabsTrigger value="teams">Teams</TabsTrigger>
           <TabsTrigger value="people">People</TabsTrigger>
+          {can("client-portal:read") ? <TabsTrigger value="client">Client</TabsTrigger> : null}
         </TabsList>
         <TabsContent value="overview"><ProjectOverview project={project} onOpenTab={openTab} /></TabsContent>
         <TabsContent value="tasks"><TaskList projectId={projectId} /></TabsContent>
         <TabsContent value="sprints"><SprintPanel projectId={projectId} /></TabsContent>
         <TabsContent value="teams"><ProjectTeamsPanel projectId={projectId} /></TabsContent>
         <TabsContent value="people"><ProjectPeople projectId={projectId} /></TabsContent>
+        {can("client-portal:read") ? <TabsContent value="client"><ProjectClientTab projectId={projectId} /></TabsContent> : null}
       </Tabs>
       <ProjectFormDialog mode="edit" project={project} open={editing} onOpenChange={setEditing} />
       <ConfirmDialog open={confirming} onOpenChange={setConfirming} title="Delete this project?" description="Its sprints and tasks will no longer be accessible. This can't be undone from the UI." confirmLabel="Delete project" destructive

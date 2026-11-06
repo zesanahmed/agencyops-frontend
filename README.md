@@ -153,6 +153,13 @@ copy of the real backend and a real PostgreSQL.
   (`/portal/accept-invite?token=`) sets the password and signs the contact in. Every project route is gated server-side by a
   per-project grant (a project without one answers 404). Tasks are only the ones staff marked client-visible, with no assignee,
   comments or attachments. There is no portal password reset or change-password endpoint yet.
+- **Portal collaboration and invoices:** a contact's Messages (thread), Files (upload; only the agency can delete), Requests (the
+  contact sees only **their own**, plus the agency's resolution note) are tabs of the portal project page; `/client/files` is a
+  project picker over the same list. Invoices: `/client/invoices[/id]`, never DRAFT; **Pay** asks the server to open a Stripe
+  Checkout session (amount comes from the server, `409` if not payable) and leaves the app. `/payment/success?type=invoice` polls
+  `GET /portal/invoices/:id/payment-status?session_id=` (the backend reads `session_id`; the contract's `sessionId` is wrong) and
+  shows paid only when `confirmed` is true; FAILED shows the reason with a retry link; CANCELED / voided invoices are reported;
+  a 30 s timeout says "processing", never success.
 - **Demo login:** the three buttons use the accounts created by the backend's `npm run seed` (`*@demo.agencyops.test`,
   password `DemoPass123!`); `NEXT_PUBLIC_DEMO_*` env vars override them.
 

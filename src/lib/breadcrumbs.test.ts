@@ -39,4 +39,12 @@ describe("buildCrumbs", () => {
   it("labels the activity feed", () => {
     expect(buildCrumbs("/organizations/o1/activity", { org: "Acme" })).toEqual([{ label: "Acme", href: "/organizations/o1" }, { label: "Activity" }]);
   });
+  it("covers clients and invoices", () => {
+    expect(buildCrumbs("/organizations/o1/clients/c1", { org: "Acme" })).toEqual([{ label: "Acme", href: "/organizations/o1" }, { label: "Clients", href: "/organizations/o1/clients" }, { label: "Client" }]);
+    expect(buildCrumbs("/organizations/o1/invoices/new", { org: "Acme" }).map((c) => c.label)).toEqual(["Acme", "Invoices", "New invoice"]);
+    expect(buildCrumbs("/organizations/o1/invoices/i1/edit", { org: "Acme" })).toEqual([{ label: "Acme", href: "/organizations/o1" }, { label: "Invoices", href: "/organizations/o1/invoices" }, { label: "Invoice", href: "/organizations/o1/invoices/i1" }, { label: "Edit" }]);
+  });
+  it("labels the client requests inbox", () => {
+    expect(buildCrumbs("/organizations/o1/requests", { org: "Acme" }).map((c) => c.label)).toEqual(["Acme", "Client requests"]);
+  });
 });

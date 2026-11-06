@@ -18,6 +18,8 @@ import { taskSchedule } from "@/features/projects/project-metrics";
 import { ScheduleBadge } from "@/features/projects/project-schedule-badge";
 import { formatCalendarDate } from "@/lib/format";
 import { useDeleteTask, useUpdateTask } from "./hooks";
+import { TaskAttachments } from "./task-attachments";
+import { TaskClientVisibility } from "./task-client-visibility";
 import { TaskCollaborators } from "./task-collaborators";
 import { TaskComments } from "./task-comments";
 import { TaskField } from "./task-field";
@@ -58,6 +60,7 @@ export function TaskDetail({ projectId, taskId }: { projectId: string; taskId: s
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <div className="space-y-10">
           <TaskSubtasks projectId={projectId} taskId={taskId} />
+          <TaskAttachments projectId={projectId} taskId={taskId} />
           <TaskComments projectId={projectId} taskId={taskId} />
         </div>
         <aside className="space-y-6 lg:border-l lg:border-border lg:pl-6" aria-label="Task details">
@@ -90,6 +93,7 @@ export function TaskDetail({ projectId, taskId }: { projectId: string; taskId: s
             </dl>
           </TaskField>
           <TaskCollaborators projectId={projectId} taskId={taskId} />
+          <TaskClientVisibility key={taskId} projectId={projectId} taskId={taskId} initial={t.clientVisible} />
         </aside>
       </div>
       <TaskFormDialog mode="edit" projectId={projectId} task={t} open={editing} onOpenChange={setEditing} />

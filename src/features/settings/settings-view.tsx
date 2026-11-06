@@ -17,6 +17,7 @@ import { qk, useOrganization } from "@/features/organizations/hooks";
 import { organizationSchema, type OrganizationValues } from "@/features/organizations/schemas";
 import { useOrg } from "@/features/organizations/org-context";
 import { orgApi } from "@/lib/api/services";
+import { BillingSection } from "@/features/billing/billing-section";
 import { NotificationPreferences } from "@/features/notifications/notification-preferences";
 import { useAction } from "@/lib/use-action";
 
@@ -24,6 +25,7 @@ export function SettingsView() {
   return (
     <div className="max-w-2xl space-y-10">
       <OrganizationSection />
+      <BillingGate />
       <PreferencesSection />
       <SessionSection />
     </div>
@@ -74,6 +76,13 @@ function OrganizationSection() {
         onConfirm={async () => { await del.mutateAsync(undefined); router.replace("/organizations"); }} />
     </Section>
   );
+}
+
+/** Owners and managers can see the plan (billing:read); only owners can change it. */
+function BillingGate() {
+  const { can } = useOrg();
+  if (!can("billing:read")) return null;
+  return <Section title="Plan & billing" description="Your organization's subscription."><BillingSection /></Section>;
 }
 
 function PreferencesSection() {

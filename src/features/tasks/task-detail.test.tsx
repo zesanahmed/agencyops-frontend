@@ -35,6 +35,8 @@ vi.mock("./hooks", () => ({
 vi.mock("./task-subtasks", () => ({ TaskSubtasks: () => <div>SUBTASKS</div> }));
 vi.mock("./task-comments", () => ({ TaskComments: () => <div>COMMENTS</div> }));
 vi.mock("./task-collaborators", () => ({ TaskCollaborators: () => <div>COLLABORATORS</div> }));
+vi.mock("./task-attachments", () => ({ TaskAttachments: () => <div>ATTACHMENTS</div> }));
+vi.mock("./task-client-visibility", () => ({ TaskClientVisibility: () => <div>CLIENT-VISIBILITY</div> }));
 
 const base = (o: Partial<Task> = {}): Task => ({ id: "t1", projectId: "p1", sprintId: "s2", parentTaskId: null, assigneeMembershipId: "m1", title: "Build login", description: "OAuth later", status: "IN_PROGRESS", priority: "HIGH", startDate: "2026-01-01T00:00:00.000Z", dueDate: day(-2), createdAt: "", ...o });
 
