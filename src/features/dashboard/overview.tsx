@@ -13,6 +13,7 @@ import { Can, useOrg } from "@/features/organizations/org-context";
 import { CreateProjectDialog } from "@/features/projects/project-form-dialog";
 import { notificationApi } from "@/lib/api/services";
 import { qk } from "@/features/organizations/hooks";
+import { BillingGlance } from "./billing-glance";
 import { useOrgWork } from "./use-org-work";
 
 const WorkDistributionChart = dynamic(() => import("./work-distribution-chart").then((m) => m.WorkDistributionChart), { ssr: false, loading: () => <Skeleton className="h-56" /> });
@@ -57,6 +58,7 @@ export function Overview() {
           </ul>
         </section>
       </div>
+      <BillingGlance />
       {work.projectsTruncated || work.tasksTruncated ? <p className="text-xs text-muted-foreground">Task figures cover {work.projectsTruncated ? `your ${work.scanned.length} most recent open projects` : "open projects"}{work.tasksTruncated ? ", counting up to 100 tasks per project" : ""}.</p> : null}
     </div>
   );

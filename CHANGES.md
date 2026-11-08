@@ -1,25 +1,31 @@
-# CHANGES — Phase L2 (client portal: collaboration, files, invoices, payment)
+# CHANGES — Phase M (final QA, accuracy, documentation, deployment readiness)
 
-Builds on Phase L1. Backend verified at `agencyops-api` `08f0b20`.
+Builds on Phase L2. Backend verified at `agencyops-api` `08f0b20`.
 
-## New (all under the client portal)
-- **Project page tabs:** Messages (thread, newest page first, "You" for the contact's own), Files (shared list + uploader with
-  preview/progress/cancel; contacts can't delete), Requests (their own requests with status and the agency's reply; "New request"
-  form with type, title, details).
-- **`/client/files`**: pick a project (`?project=`), then the same files list/uploader.
-- **`/client/invoices`** and **`/client/invoices/[id]`**: list, line items, totals, PDF link when ready, **Pay** (Stripe Checkout).
-  PAID / VOID can't be paid.
-- **Overview** flags invoices awaiting payment (count and total, when they share a currency).
-- **`/payment/success?type=invoice`** now confirms against the server (polling, FAILED reason + retry, CANCELED, voided,
-  30 s "processing" fallback, sign-in prompt when signed out). It runs inside its own portal session provider since the page
-  lives outside `/client`.
+## Fixed
+- **The production build was broken.** The four old portal stub pages (`src/app/client/page.tsx`, `projects/page.tsx`, `invoices/page.tsx`,
+  `files/page.tsx`) were still in the repo next to their replacements in `client/(portal)/`, so `next build` failed with "two parallel
+  pages resolve to the same path". They are deleted here; a Vercel deploy would have failed.
+- **Public pages described a product that no longer existed.** Home, Product and Pricing still said the client portal was "coming",
+  that nothing collects payment and that invoices were planned. All rewritten to match what ships (Free/Pro, Stripe test mode, client
+  portal, attachments, activity, invoices). `marketing-content.test.tsx` now guards against those stale claims coming back.
+- Missing skeletons: the projects list (staff and portal) used a generic parent skeleton; each now has its own `loading.tsx`.
+- No error boundary inside the client portal: added `client/(portal)/error.tsx` (a crash stays inside the portal shell).
 
-## Contract notes
-- Payment-status query is `session_id` in the backend code (FRONTEND_CONTRACT §4 says `sessionId`); the code wins.
+## Added
+- **Billing at a glance** chart on the organization overview (Recharts): paid / awaiting payment / draft totals for owners and managers.
+  Never mixes currencies, ignores void invoices, says when it is partial.
+- **Accessibility suite** (`axe-core`, WCAG 2 A/AA) over the public pages, 404 and the sign-in/registration/forgot-password/portal forms.
+  New dev dependency: `axe-core` (run `npm install`).
+- **Documentation:** a real `README.md` (overview, demo accounts, roles and enforcement, architecture, scripts, env, limitations),
+  `DEPLOYMENT.md` (backend + Vercel + Stripe webhook + a 10-step smoke test), `DEMO.md` (a timed script for the walkthrough video),
+  `ASSIGNMENT_CHECKLIST.md` (every requirement with evidence, and the items only you can finish), and `docs/BACKEND_CONTRACT.md`
+  (the API notes moved out of the README, with the places where the backend's docs and code disagree).
+
+## Delete these files (a ZIP can't remove files)
+```
+git rm src/app/client/page.tsx src/app/client/projects/page.tsx src/app/client/invoices/page.tsx src/app/client/files/page.tsx
+```
 
 ## Tests
-586 -> 614 (portal messages/requests/files/invoices, invoice payment confirmation states, L2 contract tests).
-
-## Not covered
-Stripe Checkout/webhook, Cloudinary uploads and e-mail were not run against live services; everything is tested against mocked
-responses that follow the backend code. The portal path needs your Stripe test keys, the webhook listener and the worker.
+614 -> 644 (billing summary, accessibility, marketing-copy guard, new loading boundaries).

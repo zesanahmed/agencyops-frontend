@@ -10,6 +10,8 @@ const PRINCIPLES = [
   { title: "Tenant isolation is non-negotiable", body: "Every organization-scoped request is checked on the server against the caller's membership. A guessed ID never reaches another agency's data." },
   { title: "The server decides permissions", body: "The interface hides what you can't do, but the backend is the authority. A hidden button is convenience, never security." },
   { title: "Sessions you can trust", body: "Short-lived access tokens, rotating refresh tokens in HttpOnly cookies, and reuse detection that revokes a stolen session." },
+  { title: "Clients are a separate boundary", body: "A client contact is not a team member. They have their own sign-in and see only what you grant per project, enforced on the server." },
+  { title: "Money is confirmed by the server", body: "A payment is marked paid only when the payment provider's signed notification reaches the backend. Landing on a success page proves nothing, so the app asks the server and says \"processing\" until it knows." },
   { title: "Clarity over decoration", body: "Status, priority and ownership are visible at a glance, and never conveyed by colour alone." },
 ];
 

@@ -53,6 +53,8 @@ const LOADING: { file: string; ariaLabel: string }[] = [
   { file: `${ORG}/clients/loading.tsx`, ariaLabel: "Loading clients" },
   { file: `${ORG}/clients/[clientId]/loading.tsx`, ariaLabel: "Loading client" },
   { file: `${ORG}/requests/loading.tsx`, ariaLabel: "Loading requests" },
+  { file: `${ORG}/projects/loading.tsx`, ariaLabel: "Loading projects" },
+  { file: "client/(portal)/projects/loading.tsx", ariaLabel: "Loading projects" },
   { file: "client/(portal)/loading.tsx", ariaLabel: "Loading" },
   { file: "client/(portal)/invoices/loading.tsx", ariaLabel: "Loading invoices" },
   { file: "client/(portal)/invoices/[invoiceId]/loading.tsx", ariaLabel: "Loading invoice" },

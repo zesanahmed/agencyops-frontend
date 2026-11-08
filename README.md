@@ -1,39 +1,140 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AgencyOps — frontend
 
-## Getting Started
+Operations software for small software agencies: **teams, projects, sprints and tasks** for the agency, plus a separate
+**client portal** where clients follow progress, exchange messages and files, raise requests and **pay invoices by card**.
 
-First, run the development server:
+Built with Next.js (App Router), TypeScript (strict), Tailwind CSS and Radix UI primitives, against the real
+[`agencyops-api`](https://github.com/zesanahmed/agencyops-api) backend. No mock data: every workflow calls the API.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+| | |
+|---|---|
+| Live app | _add your Vercel URL here_ |
+| API | _add your backend URL here_ |
+| Walkthrough video | _add the link here_ |
+| Demo script | [`DEMO.md`](./DEMO.md) |
+| Requirement-by-requirement status | [`ASSIGNMENT_CHECKLIST.md`](./ASSIGNMENT_CHECKLIST.md) |
+| Deploying it | [`DEPLOYMENT.md`](./DEPLOYMENT.md) |
+
+## Try it in one click
+
+On `/login` there are three **Demo login** buttons, one per internal role, and `/client/login` has a **Demo client login**.
+They use the accounts created by the backend's `npm run seed` (organization *Brightline Studio*, slug `brightline-studio`).
+
+| Role | Email | Password | Lands on |
+|---|---|---|---|
+| Owner | `owner@demo.agencyops.test` | `DemoPass123!` | organization overview (everything, billing, members) |
+| Manager | `manager@demo.agencyops.test` | `DemoPass123!` | same, without billing management and member administration |
+| Team member | `member@demo.agencyops.test` | `DemoPass123!` | same, read-mostly: no clients' invoices, no admin |
+| Client contact | `client@demo.agencyops.test` | `DemoPass123!` (org slug `brightline-studio`) | the client portal |
+
+The seed has to have been run against the backend you point at (see `DEPLOYMENT.md`). These are public demo accounts.
+
+## What's in it
+
+**Internal workspace** (`/organizations/[id]/…`)
+- Overview with charts (work by status, billing at a glance), activity feed, notifications inbox with per-type preferences
+- Projects (URL-synced search, filter, sort, pagination), project workspace with Overview / Tasks / Sprints / Teams / People / **Client** tabs
+- Sprints (start, complete with "move unfinished tasks" choice), tasks with subtasks, collaborators, comments with @mentions, **attachments**
+- Teams and members, invitations by link, role changes
+- **Clients**: companies, portal contacts (invite, resend, disable), per-project access grants
+- **Invoices**: three-step wizard, send, void, PDF, payment attempts; **client requests** inbox
+- **Plan & billing**: Stripe Checkout / customer portal (owner only)
+- Account: change password, sessions, delete account, e-mail verification, optional Google/GitHub sign-in
+
+**Client portal** (`/client/…`, its own session and cookie): overview, shared projects with progress, tasks the agency chose to share,
+updates, messages, files (upload with progress), requests, invoices with **Pay**.
+
+**Public site**: home, product, pricing, about, contact. SEO metadata, Open Graph, sitemap and robots included.
+
+## Roles and how they're enforced
+
+Three internal roles per organization — **OWNER, MANAGER, TEAM_MEMBER** — plus client contacts, who are deliberately *not* a
+fourth role but a separate security boundary.
+
+- **Route level:** `src/proxy.ts` (Next middleware) redirects anonymous visitors away from app and portal routes using two
+  independent hint cookies, so a staff session never opens the portal and vice versa. It is a convenience gate; the real check
+  is the server.
+- **UI level:** the sidebar, actions and tabs follow the **server's permission list** (`GET /organizations/:id` →
+  `membership.permissions`), with `src/lib/rbac.ts` as a tested mirror of the backend matrix while it loads.
+- **Server level:** the backend is authoritative on every request; a hidden button is never treated as security.
+
+## Architecture in brief
+
+- **Server Components by default;** `"use client"` only for interactive pieces (forms, TanStack Query hooks, charts).
+  Every data page has `loading.tsx`; `error.tsx` exists for the app, the portal and the root; `not-found.tsx` is global.
+- **One API layer** (`src/lib/api`): `createTransport(realm)` gives the staff API and the portal API their own tokens, refresh
+  endpoints and stores. Access tokens live in memory; the refresh token is an HttpOnly cookie the browser never exposes to JS.
+  A 401 triggers one single-flight refresh and a retry; only a definitive rejection ends the session.
+- **Same-origin proxy:** the browser calls `/api/v1/*` on this app and Next rewrites it to the backend (`BACKEND_ORIGIN`), so
+  the backend's `SameSite=Strict` cookie stays first-party in production.
+- **State:** TanStack Query for server state, Zustand only for the two auth sessions. List filters, sort and pagination live in the URL.
+- **Forms:** React Hook Form + Zod everywhere, with schemas mirroring the backend's validation; server field errors are mapped back onto fields.
+- **Money:** integer cents end to end; amounts parsed from decimal strings without floating point. A payment is shown as paid
+  only when the **server** confirms it (the Stripe webhook), never because a browser reached a success URL.
+- **Accessibility:** semantic landmarks, labelled controls, focus-visible styles, no colour-only status; an automated axe-core
+  suite covers the public pages and sign-in forms.
+
+```
+src/
+  app/            routes: (marketing) (auth) (app)/organizations/[id]/… client/(portal)/… payment/ invite/ portal/
+  components/     ui/ (primitives) shared/ (DataTable-style pieces, states) layout/ marketing/ client/
+  features/       one folder per domain: auth, organizations, projects, tasks, sprints, teams, members, clients,
+                  invoices, billing, client-portal (staff side), portal (client side), notifications, activity, dashboard…
+  lib/            api/ (transport, services, mappers, errors), rbac, money, files, format, auth/
+  stores/         auth-store, portal-auth-store
+  types/          domain.ts (API types)
+docs/BACKEND_CONTRACT.md    what the UI assumes about the API, and where the API's docs and code disagree
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Getting started
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Prerequisites: Node 20+, and the [backend](https://github.com/zesanahmed/agencyops-api) running (PostgreSQL + Redis; `npm run seed` for demo data).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+cp .env.example .env.local      # set BACKEND_ORIGIN (e.g. http://localhost:5000)
+npm install
+npm run dev                     # http://localhost:3000
+```
 
-## Learn More
+| Script | |
+|---|---|
+| `npm run dev` / `build` / `start` | Next.js |
+| `npm run typecheck` | `next typegen` + `tsc --noEmit` (also validates App Router route types) |
+| `npm run lint` | ESLint |
+| `npm test` | Vitest + Testing Library (unit, component, contract and route-structure tests) |
+| `npm run probe:api` | prints live response shapes from the backend to spot contract drift |
 
-To learn more about Next.js, take a look at the following resources:
+### Environment
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Variable | Purpose |
+|---|---|
+| `BACKEND_ORIGIN` | **Server-side, read at build time.** Where `/api/v1/*` is proxied to (no trailing slash, no `/api/v1`) |
+| `NEXT_PUBLIC_SITE_URL` | This site's public URL (metadata, sitemap) |
+| `NEXT_PUBLIC_API_BASE_URL` | Leave unset to use the same-origin proxy (recommended) |
+| `NEXT_PUBLIC_DEMO_*` | Optional overrides for the demo buttons (defaults are the seed accounts) |
+| `NEXT_PUBLIC_CONTACT_EMAIL` | Optional: makes the contact form open the visitor's mail app |
+| `NEXT_PUBLIC_OAUTH_PROVIDERS` | Optional: `google,github` to show social sign-in (needs backend credentials) |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`NEXT_PUBLIC_*` values are bundled into client code: never put a secret in one.
 
-## Deploy on Vercel
+## Quality gates
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+`npm run typecheck && npm run lint && npm test && npm run build` must all pass. The tests pin the API contract (types, mappers,
+RBAC matrix), the route structure (every page's folder provides the params it reads), the auth/session behaviour (token
+isolation between staff and portal, single-flight refresh), payment confirmation states (including timeouts), file upload
+(progress, cancel, 401 retry), and accessibility of the public pages.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Known limitations
+
+- Free-plan limits (5 members, 3 projects) are shown but **not enforced** by the backend yet.
+- The contact form has no backend endpoint, so it opens the visitor's mail client (or copies the message) and says so.
+- Contacts have no password-reset or change-password endpoint on the backend yet.
+- Task reads don't expose whether a task is client-visible (see `docs/BACKEND_CONTRACT.md`).
+- Payments run in Stripe **test mode** (card `4242 4242 4242 4242`).
+- Not run end to end here against live Stripe, Cloudinary or an e-mail provider; those paths are covered with mocked responses
+  that follow the backend code. See `DEPLOYMENT.md` for the smoke test to run once they're configured.
+
+---
 
 ## Tooling compatibility
 
@@ -60,119 +161,4 @@ types (the ones that validate layouts/pages against their route params) only dur
 under the wrong route (for example an organization layout in `src/app/(app)/` instead of
 `src/app/(app)/organizations/[organizationId]/`). `src/app/route-structure.test.ts` guards the same
 mistake during `npm test`.
-
-## Backend contract
-
-The frontend is built against **`zesanahmed/agencyops-api`** and its types were verified from that
-repository's source (commit `afe5f62`, 2026-09-28), then exercised end to end against a locally running
-copy of the real backend and a real PostgreSQL.
-
-- **Envelope:** success is `{ success, message, data }`; failure is `{ success: false, message, errors: [{ path, message }] }`.
-- **Lists:** `data.<plural>` plus `data.pagination` (`organizations`, `members`, `invitations`, `teams`,
-  `projects`, `sprints`, `tasks`, `comments`, `notifications`). Maximum page size is 100.
-- **Single resources** are nested under their name (`data.organization`, `data.member`, `data.task`, …).
-  Creating an invitation returns `inviteToken` *beside* `invitation`.
-- **People are IDs, not objects.** Tasks, comments, team/project members and collaborators carry only a
-  `membershipId`; names come from the *member directory* (`features/members/use-member-directory.ts`).
-  Organizations carry no role: the caller's role is found in the members list.
-- **Enums:** task status `BACKLOG | TODO | IN_PROGRESS | IN_REVIEW | DONE`; project status ends in
-  `CANCELLED`; invitations and role changes accept only `MANAGER | TEAM_MEMBER`.
-- **Search/filter support differs per endpoint** (projects and tasks have `search`; teams, members,
-  sprints and invitations take only `page`/`limit`), so the UI only offers filters the backend honours.
-- **Permissions** mirror `src/modules/rbac/permissions.ts` in `src/lib/rbac.ts` (UI only; the backend is
-  authoritative). `src/lib/rbac.test.ts` and `src/lib/api/contract.test.ts` pin both to the backend.
-- The refresh cookie is `SameSite=Strict` with path `/api/v1/auth`, so the browser talks to the backend
-  through this app's same-origin `/api/v1` rewrite (`BACKEND_ORIGIN`, fixed at build time). The backend now
-  also configures CORS, but this app doesn't rely on it.
-- **Teams:** names are unique per organization (409); `description` is a string (send `""` to clear, not `null`);
-  a team's members are *not* filtered by organization membership, so someone removed from the organization
-  can still appear on a team ("Former member"); assigning a team to a project does **not** add its people to
-  the project; and the backend still lists assignments of soft-deleted teams (shown as "Deleted team").
-  There is no "projects of a team" endpoint, so those are derived from each project's assignments.
-
-- **Projects:** the slug is derived from the name, so a duplicate name is a 409 ("slug already exists"), shown on the
-  Name field. `startDate`/`dueDate` are optional UTC calendar dates; the "due on or after start" rule only runs when
-  **both** are in the request body, so the edit form always sends both. Project and task dates **can be cleared** with
-  `null` (final backend; sprint dates are required and cannot). Clearing the description sends `""`. Project lists sort
-  by `createdAt`, `name` or `dueDate`. List/detail items now carry `taskCounts`, `memberCount` and `activeSprint`
-  (typed as optional: absent on create/update responses).
-- **Sprints:** completing takes an optional `moveOpenTasksTo` of `"BACKLOG"` or a sprint id; omitted leaves open tasks in the
-  completed sprint. (`FRONTEND_CONTRACT.md` §3.3 says `null`, but the backend's validation rejects `null` — verified in
-  `sprint.validation.ts` at 08f0b20; the frontend follows the code.)
-
-- **Notifications:** the list takes `page`, `limit`, `unreadOnly`. `unreadOnly` is parsed with `z.coerce.boolean()` and
-  `Boolean("false")` is `true`, so the frontend only sends it when it is `true` (sending `unreadOnly=false` returns *only*
-  unread). The unread count comes from `meta.total` of an `unreadOnly=true&limit=1` request. Items carry `data` with the ids
-  needed to deep-link (`notificationHref`); notifications written before `data` existed have none and are not clickable.
-  Invoice notifications have no internal page yet. Preference rows are created lazily by `PUT`, so a type with no row is
-  shown on/on. Demo users have e-mail disabled for every type.
-- **Activity:** `GET /organizations/:id/activity` (filters `entityType`, `projectId`, `taskId`, `actorMembershipId`).
-  OWNER/MANAGER see the whole organization, TEAM_MEMBER only projects they belong to. The `summary` text is rendered as-is.
-- **Access:** `GET /organizations/:id` returns the caller's `membership` with the server's `permissions` list; the UI gates on
-  that list and only falls back to the mirrored matrix in `src/lib/rbac.ts` while it loads (no more member-directory
-  lookup to find one's own role).
-- **Account & security (final backend):** forgot/reset password (`POST /auth/forgot-password` answers identically for unknown
-  addresses, so the UI never confirms an account exists; reset tokens are single-use), e-mail verification
-  (`/verify-email?token=`, fired exactly once per page load), change password (revokes **every** session, so the UI signs out
-  afterwards), session list/revoke, delete account (password required only for accounts that have one; **409** while the user
-  still owns an organization). Nothing in the backend is gated on a verified address, so the unverified banner only nudges.
-  The password policy is **8–72 characters and ≤72 UTF-8 bytes** (bcrypt); an earlier frontend rule of 128 was wrong.
-- **E-mailed links** are `/verify-email`, `/reset-password`, `/invitations/accept` (bridged to `/invite/[token]`) and, in a
-  later phase, `/portal/accept-invite`.
-- **OAuth (Google/GitHub):** the buttons are hidden unless `NEXT_PUBLIC_OAUTH_PROVIDERS` is set. The start URL goes through the
-  `/api/v1` proxy, so for the round-trip to stay first-party the backend's `API_PUBLIC_URL` must be this site's origin and the
-  provider's redirect URI `<origin>/api/v1/auth/oauth/<provider>/callback`. The callback page (`/oauth/callback`) trades the
-  refresh cookie for an access token exactly once. Not exercised against real provider credentials in this repo.
-- **Clients (staff side):** `/organizations/:id/clients` (+ `/:clientId` with Contacts and Projects tabs). Contacts are portal
-  users, not org members. Creating/re-inviting/enabling a contact returns `inviteToken` **only while the backend has no e-mail
-  delivery**; the UI then shows a copyable `/portal/accept-invite?token=` link, otherwise it says the invitation was e-mailed.
-  Deleting a client disables its contacts, removes their access and unlinks its projects (invoices stay). A project belongs to at
-  most one client (409 on a second link). Contacts see nothing until granted access per linked project.
-- **Invoices (staff side):** amounts are integer cents and the server recomputes totals (`subtotal - discount + tax`); the form
-  only previews them. Only DRAFT invoices are editable; `send` does **not** e-mail anyone, it makes the invoice visible in the
-  portal (and queues the PDF); a zero-total draft can't be sent (422); a paid invoice can't be voided (409). PDFs are rendered
-  by the backend **worker** (202 + later `pdfUrl`), so the page polls while waiting.
-- **Billing/payments:** the organization plan is OWNER-managed through Stripe Checkout/Portal (the browser leaves the app for the
-  Stripe URL). `/payment/success` polls `GET /billing` every 2 s for ~30 s and says "paid" only when the **server** reports
-  Pro; after the timeout it says "processing", never success. State changes only via the signed Stripe webhook. Test card
-  `4242 4242 4242 4242`.
-- **Client collaboration (staff side):** project workspace -> **Client** tab (Updates, Messages, Files, Requests; section in the URL)
-  and an org-wide inbox at `/organizations/:id/requests`. Read needs `client-portal:read` (all roles), writing needs
-  `client-portal:manage` (Owner/Manager). Messages are paged **oldest-first**, so the thread opens on the last page. Request
-  status/resolution note can be changed (`null` clears the note). Shared files from either side are listed with who uploaded them.
-- **Uploads:** multipart field `file`, allow-list and 10 MB limit mirrored from `upload.ts` (the server also checks the real file
-  signature and answers 400 "File content does not match its declared type"). `apiUpload` uses XMLHttpRequest for real progress
-  and cancel, with the same 401 -> refresh -> retry as other calls. Cloudinary must be configured on the backend (503 otherwise).
-- **Task attachments** live on the task page; list/upload/delete use `task:read` / `task:update`.
-- **Known backend gap:** task reads don't include `clientVisible`; only the visibility PATCH returns it. The task page therefore
-  sets visibility explicitly until the current value is known (see CHANGES.md).
-- **Client portal (a separate realm):** contacts are not org members. `/portal/*` has its own access token, its own refresh cookie
-  (`agencyops_refresh_token_client`, path `/api/v1/portal/auth`) and its own client-side hint cookie (`ao_portal_session`); a staff
-  session never opens the portal and vice versa (`src/proxy.ts`, `usePortalAuthStore`, `createTransport` realms in
-  `src/lib/api/client.ts`). Sign-in needs the agency's **organization slug** + e-mail + password; the invitation link
-  (`/portal/accept-invite?token=`) sets the password and signs the contact in. Every project route is gated server-side by a
-  per-project grant (a project without one answers 404). Tasks are only the ones staff marked client-visible, with no assignee,
-  comments or attachments. There is no portal password reset or change-password endpoint yet.
-- **Portal collaboration and invoices:** a contact's Messages (thread), Files (upload; only the agency can delete), Requests (the
-  contact sees only **their own**, plus the agency's resolution note) are tabs of the portal project page; `/client/files` is a
-  project picker over the same list. Invoices: `/client/invoices[/id]`, never DRAFT; **Pay** asks the server to open a Stripe
-  Checkout session (amount comes from the server, `409` if not payable) and leaves the app. `/payment/success?type=invoice` polls
-  `GET /portal/invoices/:id/payment-status?session_id=` (the backend reads `session_id`; the contract's `sessionId` is wrong) and
-  shows paid only when `confirmed` is true; FAILED shows the reason with a retry link; CANCELED / voided invoices are reported;
-  a 30 s timeout says "processing", never success.
-- **Demo login:** the three buttons use the accounts created by the backend's `npm run seed` (`*@demo.agencyops.test`,
-  password `DemoPass123!`); `NEXT_PUBLIC_DEMO_*` env vars override them.
-
-If the backend changes a shape, update `src/types/domain.ts`, `src/lib/api/mappers.ts` and the contract
-tests together. `npm run probe:api` prints the live response shapes to check for drift.
-
-## Deployment notes
-
-- `BACKEND_ORIGIN` is read at **build time** (it configures the rewrite), so set it before building.
-- **Rate limits.** The backend limits register, login and the public invitation routes to 10 requests per
-  15 minutes and refresh to 30, keyed by `req.ip`, and it does not set Express `trust proxy`. Behind this app's
-  rewrite the backend therefore sees the *frontend's* address, not each user's, so every user would share those
-  budgets. Before going live, set `trust proxy` on the backend (and confirm your host forwards the client IP in
-  `X-Forwarded-For`), or key the auth limiters by something per-user such as the submitted email. A 429 on
-  refresh is treated as a temporary outage (the session is kept and a retry is offered), not a sign-out.
 
